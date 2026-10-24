@@ -1,0 +1,31 @@
+[project]
+name = "opencode-toolkit"
+version = "0.1.0"
+description = "octk: context diet, human-in-the-loop gating, and honest metrics for OpenCode agents"
+license = { text = "MIT" }
+requires-python = ">=3.14"
+dependencies = [
+    "mcp>=1.2",
+    "playwright>=1.49",
+]
+
+[project.scripts]
+octk = "octk.cli:main"
+octk-mcp = "octk.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["octk", "octk.runtime"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = ["browser: needs Chromium"]

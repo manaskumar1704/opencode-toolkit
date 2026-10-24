@@ -1,0 +1,13 @@
+*skills/*
+
+# octk (C5: never commit metrics/approvals/graphify-out)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.toolkit/metrics.json
+.toolkit/approvals.json
+graphify-out/
