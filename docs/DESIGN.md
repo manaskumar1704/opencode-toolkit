@@ -56,6 +56,12 @@ human approval, and records honest benchmark metrics. Package: `octk`; CLI:
 | `octk/report.py` | `build_report`, `build_report_data` |
 | `octk/cli.py` | argparse CLI; only place allowed to touch `Path.cwd()` |
 | `octk/server.py` | Thin FastMCP wrappers (Prompt 2) |
+| `octk/runtime/safety.py` | allowlisted subprocess runner (no shell, timeout, cwd=root) |
+| `octk/runtime/debugger.py` | pure output pruner (project frames, signals) + pytest/python routing |
+| `octk/runtime/_trace_wrapper.py` | runpy wrapper printing project frames with locals |
+| `octk/runtime/browser.py` | headless-Chromium visit summarizer (errors, 4xx/5xx, elements) |
+| `octk/audit.py` | graph freshness + audit workflow (instruct/subprocess) |
+| `octk/bench.py` | generated fixtures, tool bench, signal retention scoring (Prompt 3) |
 
 ## Report honesty rules
 

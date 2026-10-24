@@ -176,6 +176,32 @@ def cmd_mcp_config(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench_tools(args: argparse.Namespace) -> int:
+    """Run the tool bench; write the report; exit 1 on lost signals."""
+    from . import bench as bench_mod
+
+    root = get_root()
+    results = bench_mod.run_tool_bench(root)
+    if args.json:
+        print(json.dumps(results, indent=2))
+    out_path = Path(args.out) if args.out else root / "reports" / "BENCH_TOOLS.md"
+    if not out_path.is_absolute():
+        out_path = root / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(bench_mod.format_bench(results), encoding="utf-8")
+    note = f"bench report written: {out_path}"
+    print(note, file=sys.stderr) if args.json else print(note)
+    failed = [
+        case["name"]
+        for case in results["cases"]
+        if not case["skipped"] and case["signals"]["retention"] < 1.0
+    ]
+    if failed:
+        print("octk bench FAILED (signals lost): " + ", ".join(failed), file=sys.stderr)
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="octk")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -221,6 +247,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mcp = sub.add_parser("mcp-config", help="print the opencode.json snippet (V2 syntax)")
     p_mcp.set_defaults(func=cmd_mcp_config)
+
+    p_bench = sub.add_parser("bench", help="tool-level benchmarks")
+    bench_sub = p_bench.add_subparsers(dest="bench_command", required=True)
+    p_tools = bench_sub.add_parser("tools", help="score pruners on generated fixtures")
+    p_tools.add_argument("--out", default=None, help="report path (default reports/BENCH_TOOLS.md)")
+    p_tools.add_argument("--json", action="store_true", help="also print raw results as JSON")
+    p_tools.set_defaults(func=cmd_bench_tools)
 
     return parser
 
