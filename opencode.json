@@ -1,0 +1,35 @@
+{
+  "mcp": {
+    "servers": {
+      "octk": {
+        "type": "local",
+        "command": [
+          "C:\\Users\\Lenovo\\Developer\\opencode-toolkit\\.venv\\Scripts\\octk-mcp.EXE"
+        ],
+        "codemode": false
+      }
+    }
+  },
+  "permissions": [
+    {
+      "action": "shell",
+      "resource": "octk approve *",
+      "effect": "deny"
+    },
+    {
+      "action": "edit",
+      "resource": ".toolkit/approvals.json",
+      "effect": "deny"
+    },
+    {
+      "action": "edit",
+      "resource": ".toolkit/metrics.json",
+      "effect": "deny"
+    },
+    {
+      "action": "edit",
+      "resource": ".toolkit/specs/roadmap.md",
+      "effect": "ask"
+    }
+  ]
+}
