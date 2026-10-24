@@ -5,7 +5,7 @@ description = "octk: context diet, human-in-the-loop gating, and honest metrics 
 license = { text = "MIT" }
 requires-python = ">=3.14"
 dependencies = [
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
     "playwright>=1.49",
 ]
 
