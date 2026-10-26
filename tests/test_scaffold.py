@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from octk.scaffold import init_repo
@@ -52,6 +53,7 @@ def test_gitignore_appended_once(tmp_path: Path) -> None:
     init_repo(tmp_path)
     body = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert ".toolkit/metrics.json" in body and ".toolkit/approvals.json" in body
+    assert ".toolkit/handoff.md" in body
     init_repo(tmp_path, force=True)
     body2 = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert body2.count(".toolkit/metrics.json") == 1
@@ -60,11 +62,24 @@ def test_gitignore_appended_once(tmp_path: Path) -> None:
 def test_agents_md_rules(tmp_path: Path) -> None:
     init_repo(tmp_path)
     text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    assert len(text.splitlines()) < 30
+    assert len(text.splitlines()) < 28
     assert "taste" in text
     assert "{{ALWAYS_ON}}" not in text
     assert "@verifier" in text
     assert "none" in text
+    assert "Fast-Path (1-File Trivial Edits)" in text
+    assert "apply the edit directly" in text
+
+
+def test_agents_md_is_static_across_renders(tmp_path: Path) -> None:
+    from octk.templates import render_agents_md
+
+    first = render_agents_md("octk", [])
+    second = render_agents_md("octk", [])
+    assert first == second
+    assert "**Current task:**" not in first
+    assert not re.search(r"\b20\d{2}-\d{2}-\d{2}\b", first)
+    assert not re.search(r"\b\d{2}:\d{2}:\d{2}\b", first)
 
 
 def test_always_on_rendering(tmp_path: Path) -> None:
@@ -82,4 +97,5 @@ def test_config_json_written_from_defaults(tmp_path: Path) -> None:
     assert cfg["always_on_skills"] == []
     assert cfg["server_name"] == "octk"
     assert cfg["audit_mode"] == "instruct"
+    assert cfg["external_mcps"] == {}
     assert "graphify-out/GRAPH_REPORT.md" in cfg["graph_report_paths"]

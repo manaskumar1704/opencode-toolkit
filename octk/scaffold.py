@@ -65,7 +65,7 @@ def opencode_json() -> dict:
 def _append_gitignore_once(root: Path) -> bool:
     """Append octk runtime files to .gitignore once; True when changed."""
     gitignore = root / ".gitignore"
-    wanted = (".toolkit/metrics.json", ".toolkit/approvals.json")
+    wanted = (".toolkit/metrics.json", ".toolkit/approvals.json", ".toolkit/handoff.md")
     if gitignore.exists():
         body = gitignore.read_text(encoding="utf-8")
     else:

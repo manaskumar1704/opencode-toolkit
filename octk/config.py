@@ -18,6 +18,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "allowed_commands": ["pytest", "python", "python3", "uv"],
     "command_timeout_s": 120,
     "max_output_chars": 2500,
+    "external_mcps": {},
+    "external_mcp_timeout_s": 30,
     "server_name": "octk",
 }
 
@@ -55,6 +57,10 @@ class ToolkitPaths:
     @property
     def approvals(self) -> Path:
         return self.toolkit / "approvals.json"
+
+    @property
+    def handoff(self) -> Path:
+        return self.toolkit / "handoff.md"
 
     @property
     def config(self) -> Path:

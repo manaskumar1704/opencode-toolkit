@@ -43,6 +43,15 @@ def list_approvals(root: Path) -> list[dict[str, Any]]:
     return _load(root)["approvals"]
 
 
+def open_approvals(root: Path, now: float | None = None) -> list[dict[str, Any]]:
+    """Unconsumed, unexpired approvals (same TTL rule as the completion gate)."""
+    import time
+
+    now = time.time() if now is None else now
+    ttl_seconds = float(load_config(root).get("approval_ttl_minutes", 120)) * 60.0
+    return [a for a in _load(root)["approvals"] if _valid(a, now, ttl_seconds)]
+
+
 def _valid(approval: dict[str, Any], now: float, ttl_seconds: float) -> bool:
     return approval.get("consumed_at") is None and (
         now - float(approval.get("created_at", 0)) <= ttl_seconds

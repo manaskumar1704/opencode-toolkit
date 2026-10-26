@@ -15,3 +15,7 @@ Rules, in order:
 6. Never mark a roadmap item done yourself: ask the user to run
    `octk approve "<task>"` in their terminal, then call
    octk_update_roadmap(task, "done").
+7. Fast-Path (1-File Trivial Edits): if the user prompt explicitly names a single
+   target file and a self-contained 1-line/small fix that does not alter
+   architecture or roadmap state, skip octk_glance_pantry() /
+   octk_equip_spec() and apply the edit directly.

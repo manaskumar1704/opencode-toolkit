@@ -5,7 +5,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from octk.runtime.debugger import prune_output, run_smart_debugger
+from octk.runtime.debugger import (
+    failure_signature,
+    first_error_line,
+    prune_output,
+    run_smart_debugger,
+)
 from octk.runtime.safety import CommandNotAllowed
 
 PYTEST_SAMPLE = """\
@@ -124,3 +129,26 @@ def test_real_failing_script_shows_locals(tmp_path: Path) -> None:
 def test_non_allowlisted_rejected(tmp_path: Path) -> None:
     with __import__("pytest").raises(CommandNotAllowed):
         run_smart_debugger("curl http://evil/", tmp_path, {"allowed_commands": ["pytest"]})
+
+
+def test_first_error_line_prefers_pytest_e_line() -> None:
+    raw = "noise\nE   ValueError: bad json\nFAILED tests/test_x.py::test_load\n"
+    assert first_error_line(raw) == "ValueError: bad json"
+
+
+def test_failure_signature_normalizes_command_whitespace() -> None:
+    left = failure_signature("pytest  tests/test_x.py", 1, "ValueError: bad")
+    right = failure_signature("pytest tests/test_x.py ", 1, "ValueError:   bad")
+    assert left == right
+    assert left != failure_signature("pytest tests/test_y.py", 1, "ValueError: bad")
+
+
+def test_real_run_reports_returncode_and_error_line(tmp_path: Path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "def test_bad():\n    raise ValueError('signature-boom')\n",
+        encoding="utf-8",
+    )
+    result = run_smart_debugger("pytest tests/test_x.py", tmp_path, None)
+    assert result.returncode != 0
+    assert "signature-boom" in result.error_line

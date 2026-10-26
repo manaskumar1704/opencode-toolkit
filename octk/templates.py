@@ -24,6 +24,10 @@ Rules, in order:
 4. Never mark a roadmap item `[x]` yourself: pass verification first, then ask the
    user to run `octk approve "<task>"` and call
    {{server_name}}_update_roadmap(task, "done").
+5. Fast-Path (1-File Trivial Edits): if the user prompt explicitly names a single
+   target file and a self-contained 1-line/small fix that does not alter
+   architecture or roadmap state, skip {{server_name}}_glance_pantry() /
+   {{server_name}}_equip_spec() and apply the edit directly.
 {SENTINEL_END}
 """
 
@@ -102,6 +106,8 @@ Describe the project in one line.
 - octk approve "<task>" - grant a one-time completion approval (human only)
 - octk task start / octk task end - record a task run
 - octk report - build the metrics report
+- octk doctor - check prefix-cache and approval-gate integrity
+- octk handoff - snapshot resume state for /clear
 {SENTINEL_END}
 """
 

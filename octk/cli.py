@@ -15,6 +15,8 @@ from pathlib import Path
 from . import report as report_mod
 from .approvals import create_approval, list_approvals
 from .config import ToolkitPaths, load_config
+from .doctor import format_doctor, run_doctor
+from .handoff import generate_handoff
 from .metrics import MetricsStore
 from .roadmap import parse_roadmap, set_status
 from .scaffold import init_repo, opencode_json
@@ -104,6 +106,7 @@ def cmd_task(args: argparse.Namespace) -> int:
         notes=args.notes,
         tokens_in=args.tokens_in,
         tokens_out=args.tokens_out,
+        tokens_cached=args.tokens_cached,
         cost_usd=args.cost_usd,
         turns=args.turns,
         check_cmd=check_cmd,
@@ -146,6 +149,26 @@ def cmd_standing(args: argparse.Namespace) -> int:
     paths = ToolkitPaths(get_root())
     entry = _metrics(paths).add_standing(args.label, args.tokens_in)
     print(f"standing recorded: {entry['label']} = {entry['tokens_in']} input tokens")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    data = run_doctor(get_root())
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        print(format_doctor(data), end="")
+    return 0 if data["status"] == "pass" else 1
+
+
+def cmd_handoff(args: argparse.Namespace) -> int:
+    paths = ToolkitPaths(get_root())
+    out = Path(args.out) if args.out else paths.handoff
+    if not out.is_absolute():
+        out = paths.root / out
+    text = generate_handoff(paths.root, out)
+    print(text, end="")
+    print(f"handoff written: {out}", file=sys.stderr)
     return 0
 
 
@@ -316,6 +339,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_end.add_argument("--notes")
     p_end.add_argument("--tokens-in", type=int)
     p_end.add_argument("--tokens-out", type=int)
+    p_end.add_argument(
+        "--tokens-cached",
+        "--cache-read",
+        dest="tokens_cached",
+        type=int,
+        default=0,
+        help="cached input tokens (cache.read); default 0",
+    )
     p_end.add_argument("--cost-usd", type=float)
     p_end.add_argument("--turns", type=int)
     p_end.add_argument("--check")
@@ -326,6 +357,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("--json", action="store_true")
     p_report.add_argument("--out")
     p_report.set_defaults(func=cmd_report)
+
+    p_doctor = sub.add_parser("doctor", help="check prefix-cache safety and gate integrity")
+    p_doctor.add_argument("--json", action="store_true")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_handoff = sub.add_parser("handoff", help="write a deterministic session handoff snapshot")
+    p_handoff.add_argument("--out", default=None, help="default .toolkit/handoff.md")
+    p_handoff.set_defaults(func=cmd_handoff)
 
     p_standing = sub.add_parser("standing", help="standing context costs")
     standing_sub = p_standing.add_subparsers(dest="standing_command", required=True)

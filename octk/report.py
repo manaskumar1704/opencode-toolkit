@@ -54,12 +54,21 @@ def _pct_delta(with_value: float, without_value: float) -> float:
     return (without_value - with_value) / without_value * 100.0
 
 
+def _pct_text(value: Any) -> str | None:
+    return None if value is None else f"{float(value) * 100:.1f}%"
+
+
 def _summary_by_mode(tasks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for mode in ("with_octk", "without_octk"):
         group = [t for t in tasks if t.get("mode") == mode and t.get("status") != "active"]
         durations = [float(t["duration_s"]) for t in group if t.get("duration_s") is not None]
         tokens = [_task_tokens(t) for t in group]
+        cached = [
+            float(t["cache_hit_rate"])
+            for t in group
+            if t.get("cache_hit_rate") is not None
+        ]
         costs = [float(t["cost_usd"]) for t in group if t.get("cost_usd") is not None]
         turns = [int(t["turns"]) for t in group if t.get("turns") is not None]
         checked = [t for t in group if t.get("check_cmd")]
@@ -71,6 +80,8 @@ def _summary_by_mode(tasks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "median_duration_s": median(durations) if durations else None,
             "mean_duration_s": mean(durations) if durations else None,
             "median_tokens": median(tokens) if tokens else None,
+            "median_cache_hit_rate": median(cached) if cached else None,
+            "median_cache_hit_rate_pct": _pct_text(median(cached) if cached else None),
             "median_cost_usd": median(costs) if costs else None,
             "median_turns": median(turns) if turns else None,
             "median_tool_calls": (
@@ -114,6 +125,14 @@ def _paired_rows(paired: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "tokens_delta_pct": _pct_delta(
                     float(_task_tokens(w) or 0), float(_task_tokens(o) or 0)
                 ),
+                "cache_hit_rate": {
+                    "with": w.get("cache_hit_rate"),
+                    "without": o.get("cache_hit_rate"),
+                },
+                "cache_hit_rate_pct": {
+                    "with": _pct_text(w.get("cache_hit_rate")),
+                    "without": _pct_text(o.get("cache_hit_rate")),
+                },
                 "turns": {"with": w.get("turns"), "without": o.get("turns")},
                 "turns_delta_pct": _pct_delta(
                     float(w.get("turns") or 0), float(o.get("turns") or 0)
@@ -122,6 +141,25 @@ def _paired_rows(paired: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "with": w.get("check_passed"),
                     "without": o.get("check_passed"),
                 },
+            }
+        )
+    return rows
+
+
+def _cache_rows(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-task cache telemetry, newest last (metrics order)."""
+    rows: list[dict[str, Any]] = []
+    for task in tasks:
+        if task.get("status") == "active" or task.get("cache_hit_rate") is None:
+            continue
+        rows.append(
+            {
+                "task": str(task.get("name")),
+                "mode": task.get("mode"),
+                "tokens_in": task.get("tokens_in"),
+                "tokens_cached": task.get("tokens_cached", 0),
+                "cache_hit_rate": task.get("cache_hit_rate"),
+                "cache_hit_rate_pct": _pct_text(task.get("cache_hit_rate")),
             }
         )
     return rows
@@ -211,6 +249,7 @@ def build_report_data(paths: list[Path]) -> dict[str, Any]:
         "measured_tools": _measured_tool_savings(tasks),
         "counterfactual": _counterfactual_rows(paths),
         "load": _load_total(paths),
+        "cache": _cache_rows(tasks),
         "standing": _standing_rows(paths),
         "models": sorted({str(t.get("model")) for t in tasks if t.get("model")}),
         "n_paired": len(paired),
@@ -219,6 +258,10 @@ def build_report_data(paths: list[Path]) -> dict[str, Any]:
 
 def _num(value: Any, suffix: str = "") -> str:
     return "-" if value is None else f"{value:g}{suffix}"
+
+
+def _fmt_pct(value: Any) -> str:
+    return "-" if value is None else f"{float(value) * 100:.1f}%"
 
 
 def _fmt_duration(seconds: Any) -> str:
@@ -234,8 +277,8 @@ def build_report(paths: list[Path]) -> str:
 
     out += ["## Run summary", ""]
     out += [
-        "| mode | n | pass rate | median duration | median approx tokens | median cost | median turns | median tool calls |",
-        "|---|---|---|---|---|---|---|---|",
+        "| mode | n | pass rate | median duration | median approx tokens | median cache hit | median cost | median turns | median tool calls |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for mode, s in data["summary"].items():
         pass_rate = (
@@ -243,20 +286,22 @@ def build_report(paths: list[Path]) -> str:
         )
         out.append(
             f"| {mode} | {s['n']} | {pass_rate} | {_fmt_duration(s['median_duration_s'])} | "
-            f"{_num(s['median_tokens'])} | {_num(s['median_cost_usd'])} | "
+            f"{_num(s['median_tokens'])} | {_fmt_pct(s.get('median_cache_hit_rate'))} | "
+            f"{_num(s['median_cost_usd'])} | "
             f"{_num(s['median_turns'])} | {_num(s['median_tool_calls'])} |"
         )
 
     out += ["", "## Paired tasks (with_octk vs without_octk)", ""]
     out += [
-        "| task | duration w | duration wo | dur % | tokens w | tokens wo | tok % | turns w | turns wo | turn % | pass w | pass wo |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| task | duration w | duration wo | dur % | tokens w | tokens wo | tok % | cache w | cache wo | turns w | turns wo | turn % | pass w | pass wo |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in data["paired"]:
         out.append(
             f"| {row['task']} | {_fmt_duration(row['duration_s']['with'])} | "
             f"{_fmt_duration(row['duration_s']['without'])} | {row['duration_delta_pct']:+.1f}% | "
             f"{row['tokens']['with']} | {row['tokens']['without']} | {row['tokens_delta_pct']:+.1f}% | "
+            f"{_fmt_pct(row['cache_hit_rate']['with'])} | {_fmt_pct(row['cache_hit_rate']['without'])} | "
             f"{_num(row['turns']['with'])} | {_num(row['turns']['without'])} | {row['turns_delta_pct']:+.1f}% | "
             f"{row['check_passed']['with']} | {row['check_passed']['without']} |"
         )
@@ -270,6 +315,16 @@ def build_report(paths: list[Path]) -> str:
         )
     if not data["measured_tools"]:
         out.append("(no measured tool calls recorded)")
+
+    out += ["", "## Prefix-cache hit rate", ""]
+    out += ["| task | mode | tokens in | tokens cached | cache hit |", "|---|---|---|---|---|"]
+    for row in data["cache"]:
+        out.append(
+            f"| {row['task']} | {row['mode']} | {row['tokens_in']} | "
+            f"{row['tokens_cached']} | {_fmt_pct(row['cache_hit_rate'])} |"
+        )
+    if not data["cache"]:
+        out.append("(no cache token data recorded; use `octk task end --tokens-cached N`)")
 
     out += ["", "## Counterfactual estimate (not measured)", ""]
     out += ["| tool | calls | raw chars | pruned chars | % reduction | approx tokens saved |", "|---|---|---|---|---|---|"]

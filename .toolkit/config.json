@@ -16,5 +16,7 @@
   ],
   "command_timeout_s": 120,
   "max_output_chars": 2500,
+  "external_mcps": {},
+  "external_mcp_timeout_s": 30,
   "server_name": "octk"
 }

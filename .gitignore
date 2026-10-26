@@ -10,6 +10,7 @@ build/
 dist/
 .toolkit/metrics.json
 .toolkit/approvals.json
+.toolkit/handoff.md
 graphify-out/
 
 # benchmark raw transcripts (summaries + bare_metrics.json stay tracked)

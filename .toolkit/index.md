@@ -21,3 +21,5 @@ Describe the project in one line.
 - octk approve "<task>" - grant a one-time completion approval (human only)
 - octk task start / octk task end - record a task run
 - octk report - build the metrics report
+- octk doctor - check prefix-cache and approval-gate integrity
+- octk handoff - snapshot resume state for /clear

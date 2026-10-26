@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import shlex
 import shutil
@@ -20,6 +22,7 @@ LOCALS_RE = re.compile(r"^\s{2,}(local\s+\w+\s*=|\w+\s*=\s)")
 EXC_LINE_RE = re.compile(r"^(Uncaught exception:|[\w.]*\b\w*(Error|Exception|Warning)\b[^:]*: \w+)")
 SUMMARY_RE = re.compile(r"^(=|(FAILED|ERROR|PASSED)|.+=.*=)")
 TRUNCATED_NOTE = "octk note: pruned"
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 @dataclass
@@ -27,6 +30,40 @@ class DebugResult:
     text: str
     raw_chars: int
     pruned_chars: int
+    returncode: int = 0
+    error_line: str = ""
+
+
+def normalize_command(command: str) -> str:
+    """Command form used for failure signatures (separators, spacing stable)."""
+    try:
+        argv = shlex.split(command.replace("\\", "/"))
+    except ValueError:
+        argv = command.replace("\\", "/").split()
+    return " ".join(argv)
+
+
+def first_error_line(raw_text: str) -> str:
+    """First useful failure line from raw output, ANSI/space normalized."""
+    lines = [_ANSI_RE.sub("", line).strip() for line in raw_text.splitlines()]
+    for line in lines:
+        if line.startswith("E "):
+            return " ".join(line[1:].split())[:300]
+    for line in lines:
+        if EXC_LINE_RE.match(line):
+            return " ".join(line.split())[:300]
+    for line in lines:
+        if re.match(r"^(FAILED|ERROR)\s+", line):
+            return " ".join(line.split())[:300]
+    nonempty = [line for line in lines if line]
+    return " ".join(nonempty[-1].split())[:300] if nonempty else ""
+
+
+def failure_signature(command: str, returncode: int | None, error_line: str) -> str:
+    """Stable hash for (normalized command, return code, first error line)."""
+    payload = [normalize_command(command), returncode, " ".join(error_line.split())]
+    material = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def _norm(path_str: str, root: Path) -> Path | None:
@@ -162,4 +199,11 @@ def run_smart_debugger(command: str, root: Path, config: dict | None = None) -> 
     result = safety.run_command(argv, root, allowed, int(config.get("command_timeout_s", 120)))
     raw_text = result.stdout + result.stderr
     text = prune_output(raw_text, root, int(config.get("max_output_chars", 2500)))
-    return DebugResult(text=text, raw_chars=len(raw_text), pruned_chars=len(text))
+    error_line = first_error_line(raw_text) if result.returncode != 0 else ""
+    return DebugResult(
+        text=text,
+        raw_chars=len(raw_text),
+        pruned_chars=len(text),
+        returncode=result.returncode,
+        error_line=error_line,
+    )

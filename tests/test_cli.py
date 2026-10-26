@@ -105,3 +105,17 @@ def test_report_out_flag(cli_root: Path, tmp_path) -> None:
     out = tmp_path / "sub" / "report.md"
     assert main(["report", "--out", str(out)]) == 0
     assert "Run summary" in out.read_text(encoding="utf-8")
+
+
+def test_handoff_cli_writes_and_prints(cli_root: Path, capsys) -> None:
+    assert main(["handoff"]) == 0
+    captured = capsys.readouterr()
+    assert "octk session handoff" in captured.out
+    assert "handoff written:" in captured.err
+    assert (ToolkitPaths(cli_root).handoff).exists()
+
+
+def test_handoff_cli_custom_out(cli_root: Path, tmp_path: Path) -> None:
+    out = tmp_path / "snapshot.md"
+    assert main(["handoff", "--out", str(out)]) == 0
+    assert "octk session handoff" in out.read_text(encoding="utf-8")
