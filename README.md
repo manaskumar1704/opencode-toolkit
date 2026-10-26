@@ -178,9 +178,6 @@ shows delta vs `bare`.
 | bare | 6823 | +0 |
 | octk | 7731 | +908 |
 
-> This table is intentionally empty. It is filled by `octk report` output,
-> never by hand.
-
 ## Tool bench
 
 ```bash
@@ -281,7 +278,7 @@ machine state, not source.
   burning LLM tokens.
 - **Multi-Model Quota Router & Agent Scaffolding (`octk init`,
   `octk set-model`):** Pre-configured primary (`plan`, `build`) and subagent
-  (`@laborer`, `@spec-critic`, `@tester`, `@explorer`, `@auditor`)
+  (`@explore`, `@verifier`)
   definitions that route high-IQ design to frontier models and offload noisy
   test loops and long-reading tasks to high-quota/free models.
 - **HITL State Gate & Telemetry Engine (`metrics.py`, `octk report`):**
@@ -295,7 +292,7 @@ machine state, not source.
   (`github.com/google/elephant-goldfish-model`):**
   - *What I borrowed:* The conceptual split between a deep-context "Elephant"
     architect (`plan` agent in `/ideate`) and a stateless, zero-context
-    "Goldfish" reviewer (`@spec-critic` subagent) to stress-test specs before
+    "Goldfish" reviewer (`@verifier` subagent) to stress-test specs before
     writing code, plus the concept of spec-to-code drift detection and
     `<!-- OCTK:START -->` sentinel-block upserting.
   - *How I adapted it for `octk`:* Replaced EGM's heavy 7-agent concurrent
