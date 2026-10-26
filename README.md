@@ -35,37 +35,25 @@ labels every number by how it was obtained.
 
 ## Architecture
 
-```
-+---------------------------------------------------------------+
-| OpenCode session                                              |
-|                                                               |
-|  AGENTS.md rules (~24 lines, root injection)                  |
-|  native skills (.opencode/skills/, loaded by OpenCode)         |
-|        |                                                      |
-|        v                                                      |
-|  Agent  --octk_glance_pantry / octk_debug_inspect / ...-->     |
-+-------------------------------+-------------------------------+
-                                |
-                                v
-+---------------------------------------------------------------+
-| octk-mcp server (stdio, 8 tools, FastMCP)                     |
-|                                                               |
-|  glance_pantry  equip_spec  equip_skill  update_roadmap        |
-|  run_audit_workflow  check_spec_drift  debug_inspect           |
-|  browser_inspect                                              |
-+---------------+---------------------------+-------------------+
-                |                           |
-                v                           v
-+-------------------------------+   +-------------------------------+
-| .toolkit/ state               |   | pruners                       |
-| index, specs, roadmap,        |   | debug runner + trace wrapper  |
-| metrics, approvals, config    |   | headless Chromium (Playwright)|
-+---------------+---------------+   +-------------------------------+
-                |
-                v
-+-------------------------------+
-| octk report (markdown / JSON) |
-+-------------------------------+
+```mermaid
+flowchart TB
+  subgraph Session["OpenCode session"]
+    AG["AGENTS.md rules (~24 lines)"]
+    NAT["native skills (.opencode/skills/)"]
+    AG --> Agent
+    NAT --> Agent
+    Agent -->|"octk_glance_pantry / octk_debug_inspect / ..."| MCP
+  end
+
+  subgraph Server["octk-mcp server (stdio, 8 tools, FastMCP)"]
+    T1["glance_pantry · equip_spec · equip_skill · update_roadmap"]
+    T2["run_audit_workflow · check_spec_drift · debug_inspect · browser_inspect"]
+  end
+
+  MCP --> Server
+  Server --> State[".toolkit/ state\nindex, specs, roadmap,\nmetrics, approvals, config"]
+  Server --> Pruners["pruners\ndebug runner + trace wrapper\nheadless Chromium (Playwright)"]
+  State --> Report["octk report\n(markdown / JSON)"]
 ```
 
 - **AGENTS.md** is the only always-loaded surface: about 24 rendered lines.
@@ -77,20 +65,12 @@ labels every number by how it was obtained.
 
 ## The approval gate
 
-```
-agent wants a roadmap line marked done
-        |
-        v
-octk_update_roadmap(task, done)  -->  valid open approval for that task?
-        | yes                                    | no
-        v                                        v
-status written, approval consumed           GateError returned;
-                                            agent stops and asks the human
-
-human runs: octk approve <task> (TTY required)
-        |
-        v
-mints a time-limited, spend-once approval
+```mermaid
+flowchart TB
+  A["agent wants a roadmap line marked done"] --> G{"valid open approval for that task?"}
+  G -->|"yes"| W["status written, approval consumed"]
+  G -->|"no"| E["GateError returned; agent stops and asks the human"]
+  H["human runs: octk approve <task> (TTY required)"] -->|"mints time-limited approval"| G
 ```
 
 The generated `opencode.json` rules also deny the agent any shell
