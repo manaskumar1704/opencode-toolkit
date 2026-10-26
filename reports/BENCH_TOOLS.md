@@ -1,12 +1,12 @@
 # octk tool bench report
 
-Generated 2026-10-24T18:32:22+00:00. All sizes are characters (approx tokens uses the chars/4 proxy). Retention < 1.0 means a required signal was lost in the pruned output.
+Generated 2026-10-26T00:40:57+00:00. All sizes are characters (approx tokens uses the chars/4 proxy). Retention < 1.0 means a required signal was lost in the pruned output.
 
 ## Cases
 
 | case | kind | raw chars | pruned chars | saved % | retention | skipped |
 |---|---|---|---|---|---|---|
-| pantry_glance | counterfactual | 81467 | 687 | 99.2% | 1.00 | - |
+| pantry_glance | counterfactual | 81507 | 725 | 99.1% | 1.00 | - |
 | debug_pruning | measured | 1856 | 734 | 60.5% | 1.00 | - |
 | browser_pruning | measured | 65303 | 298 | 99.5% | 1.00 | - |
 
@@ -18,8 +18,8 @@ Generated 2026-10-24T18:32:22+00:00. All sizes are characters (approx tokens use
 
 ## Schema overhead (what the octk MCP server adds to the tool list)
 
-7 tools: names 94 B, descriptions 462 B, JSON schemas 1102 B = 1658 B total (approx 415 tokens).
-AGENTS.md root injection: not present in bench root.
+8 tools: names 110 B, descriptions 529 B, JSON schemas 1176 B = 1815 B total (approx 454 tokens).
+AGENTS.md root injection: 784 B (approx 196 tokens).
 
 ## Honesty
 

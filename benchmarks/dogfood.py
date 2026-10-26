@@ -23,7 +23,7 @@ BARE = REPO.parent / "otk-bare"
 RESULTS = REPO / "benchmarks" / "results"
 BARE_METRICS = RESULTS / "bare_metrics.json"
 OPENCODE = shutil.which("opencode") or "opencode"
-DB = Path.home() / ".local" / "share" / "opencode" / "opencode-.db"
+DB = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 MODEL = "opencode-go/deepseek-v4.1-flash"
 PROMPT = (
     "In this repository, `{test}` fails. Find and fix the source bug so that "
@@ -166,14 +166,14 @@ def _parts(session_id: str) -> list[dict]:
     return out
 
 
-def collect(session_id: str) -> dict:
+def collect(session_id: str, jsonl_path: Path | None = None) -> dict:
     """Token usage + turns from the session DB (exact, no char proxy)."""
     import sqlite3
 
     con = sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True)
     row = con.execute(
         "SELECT tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, "
-        "tokens_cache_write, time_created, time_updated FROM session WHERE id = ?",
+        "tokens_cache_write, time_created, time_updated FROM session_v2 WHERE id = ?",
         (session_id,),
     ).fetchone()
     con.close()
@@ -182,19 +182,25 @@ def collect(session_id: str) -> dict:
     tin, tout, reason, cache_read, cache_write, created, updated = row
     turns = 0
     first_turn_in = None
-    for part in _parts(session_id):
-        if part.get("type") != "step-finish":
-            continue
-        turns += 1
-        tokens = part.get("tokens", {})
-        cache = tokens.get("cache", {})
-        step_in = (
-            int(tokens.get("input", 0))
-            + int(cache.get("read", 0))
-            + int(cache.get("write", 0))
-        )
-        if first_turn_in is None:
-            first_turn_in = step_in
+    if jsonl_path is not None and jsonl_path.exists():
+        for line in jsonl_path.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "step_finish":
+                continue
+            turns += 1
+            part = event.get("part", {})
+            tokens = part.get("tokens", {})
+            cache = tokens.get("cache", {})
+            step_in = (
+                int(tokens.get("input", 0))
+                + int(cache.get("read", 0))
+                + int(cache.get("write", 0))
+            )
+            if first_turn_in is None:
+                first_turn_in = step_in
     return {
         "tokens_in": int(tin) + int(cache_read) + int(cache_write),
         "tokens_out": int(tout) + int(reason),
@@ -256,7 +262,7 @@ def run_pair(task: dict, arms: list[str]) -> None:
                 f"no session id captured for {task['name']}/{arm}; "
                 f"stderr tail: {agent['stderr_tail']}"
             )
-        usage = collect(agent["session"])
+        usage = collect(agent["session"], RESULTS / f"{task['name']}_{arm}.jsonl")
         passed = run_check(worktree, task)
         store = MetricsStore(store_path)
         for t in reversed(store._data["tasks"]):

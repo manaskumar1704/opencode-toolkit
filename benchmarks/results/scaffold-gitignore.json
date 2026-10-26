@@ -1,0 +1,18 @@
+{
+  "with_octk": {
+    "session": "ses_e8a57d679ffeuCVStMwGqhDBw6",
+    "passed": true,
+    "duration_s": 21.101,
+    "tokens_in": 95808,
+    "tokens_out": 1140,
+    "turns": 7
+  },
+  "without_octk": {
+    "session": "ses_e8a577d6fffeNqoUnZFi6925RP",
+    "passed": true,
+    "duration_s": 19.175,
+    "tokens_in": 68226,
+    "tokens_out": 975,
+    "turns": 7
+  }
+}

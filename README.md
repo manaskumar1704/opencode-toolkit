@@ -159,9 +159,13 @@ and AGENTS.md root-injection bytes are reported as `load` context.
 
 ### Repo dogfood (paired tasks, with_octk vs without_octk)
 
-| task | duration | turns | approx tokens | acceptance |
-|---|---|---|---|---|
-| — | — | — | — | — |
+| task | dur_with | dur_without | dur_%red | turns_with | turns_without | turns_%red | tok_with | tok_without | tok_%red | acceptance |
+|---|---|---|---|---|---|---|---|---|---|---|
+| roadmap-gate | 19.6 | 26.4 | 25.7% | 6 | 8 | 25.0% | 61645 | 91957 | 33.0% | pass |
+| pantry-desc | 25.5 | 25.7 | 0.5% | 7 | 7 | 0.0% | 102380 | 86718 | -18.1% | pass |
+| metrics-tokens | 24.5 | 20.6 | -19.4% | 6 | 7 | 14.3% | 85011 | 101565 | 16.3% | pass |
+| debugger-locals | 213.9 | 141.8 | -50.8% | 30 | 18 | -66.7% | 902532 | 483855 | -86.5% | pass |
+| scaffold-gitignore | 21.1 | 19.2 | -10.0% | 7 | 7 | 0.0% | 96948 | 69201 | -40.1% | pass |
 
 ### Terminal-Bench / Harbor showcase (Phase I)
 

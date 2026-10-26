@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -152,6 +153,8 @@ def run_smart_debugger(command: str, root: Path, config: dict | None = None) -> 
     route_python_script = not route_pytest and argv[0] in py_tokens and len(argv) > 1 and argv[1].endswith(".py")
     if route_pytest and argv[0] in py_tokens:
         argv = ["pytest", *argv[3:]]
+    if route_pytest and argv and argv[0] == "pytest" and shutil.which("pytest") is None:
+        argv = [sys.executable, "-m", "pytest", *argv[1:]]
     if route_pytest:
         argv = _pytest_route(argv, config)
     elif route_python_script:
