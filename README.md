@@ -15,7 +15,7 @@ Just-In-Time Context Routing, TTY-Gated Human Approvals, and Runtime Pruners for
 
 ## Three Core Guarantees
 
-- **Lazy Context ("The Chef's Pantry"):** Instead of dumping every markdown spec and skill into Turn 1, the agent starts with a 24-line rule file and a 1-page pantry index. Specs and skills load on demand; runtime debuggers and headless browser outputs are pruned down to project-local stack frames and actionable signals.
+- **Lazy Context ("The Chef's Pantry"):** Instead of dumping every markdown spec and skill into Turn 1, the agent starts with a 21-line rule file and a 1-page pantry index. Specs and skills load on demand; runtime debuggers and headless browser outputs are pruned down to project-local stack frames and actionable signals.
 - **The TTY Approval Gate:** No agent can mark a roadmap item `[x]` done on its own. Running `octk approve "<task>"` in a real human terminal (TTY required) mints a time-limited, spend-once token that the agent must consume to check off a task.
 - **Honest Telemetry:** Every logged number is strictly classified as `measured`, `counterfactual`, or `load`. Token savings are computed from real paired runs, and pruner signal retention is scored automatically—never assumed or hand-pasted.
 
@@ -131,7 +131,7 @@ flowchart TB
 
 - **AGENTS.md** is the only always-loaded surface: ~24 rendered lines on Turn 1.
 - **Native** `.opencode/skills/` stay native: `octk_equip_skill` serves only supplemental project files placed in `.toolkit/skills/`.
-- **Configurable Namespace:** Tool names are prefixed with your configured `server_name` (default `octk`), so `octk_glance_pantry` can become `mykit_glance_pantry` per project.
+- **Configurable Namespace:** `AGENTS.md` references tools using the configured `server_name` (default `octk`); the OpenCode server key in `opencode.json` defaults to `octk` and can be aligned with it.
 
 ## The Approval Gate
 
@@ -247,6 +247,8 @@ Retention is scored, never assumed: the CLI exits 1 if any non-skipped case lose
 | `server_name` | `"octk"` | Prefix for every tool name rendered in `AGENTS.md` and config snippets |
 | `always_on_skills` | `[]` | Skills named in `AGENTS.md`'s 1-line always-on rule |
 | `audit_mode` | `"instruct"` | `"instruct"` advises (`/graphify .` then `/ponytail-review`); `"subprocess"` runs configured executables |
+| `graph_cmd` | `"graphify"` | Executable used for graph freshness checks in subprocess audit mode |
+| `audit_cmd` | `"ponytail-review"` | Executable used for code-reuse audits in subprocess audit mode |
 | `graph_report_paths` | `["graphify-out/GRAPH_REPORT.md", "graphify-out/graph.json"]` | File paths checked for dependency graph freshness |
 | `allowed_commands` | `["pytest", "python", "python3", "uv"]` | Subprocess execution allowlist (never uses a shell) |
 | `external_mcps` | `{}` | Lazy stdio MCP servers: `{"name": {"command": ["exe", "arg"], "description": "one line"}}` |
@@ -264,7 +266,7 @@ Retention is scored, never assumed: the CLI exits 1 if any non-skipped case lose
 
 ```bash
 uv sync
-uv run pytest -q                   # Run full 95-test suite (includes headless-Chromium tests)
+uv run pytest -q                   # Run full 123-test suite (includes headless-Chromium tests)
 uv run pytest -q -m "not browser"  # Run unit & integration tests without Playwright
 uv run playwright install chromium # One-time browser setup
 ```
