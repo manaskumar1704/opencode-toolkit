@@ -129,7 +129,7 @@ flowchart TB
   State --> Report["octk report\n(Markdown / JSON)"]
 ```
 
-- **AGENTS.md** is the only always-loaded surface: ~24 rendered lines on Turn 1.
+- **AGENTS.md** is the only always-loaded surface: ~21 rendered lines on Turn 1.
 - **Native** `.opencode/skills/` stay native: `octk_equip_skill` serves only supplemental project files placed in `.toolkit/skills/`.
 - **Configurable Namespace:** `AGENTS.md` references tools using the configured `server_name` (default `octk`); the OpenCode server key in `opencode.json` defaults to `octk` and can be aligned with it.
 
