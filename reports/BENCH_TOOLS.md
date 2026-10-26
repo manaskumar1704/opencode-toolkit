@@ -1,6 +1,6 @@
 # octk tool bench report
 
-Generated 2026-10-26T00:40:57+00:00. All sizes are characters (approx tokens uses the chars/4 proxy). Retention < 1.0 means a required signal was lost in the pruned output.
+Generated 2026-10-26T11:41:39+00:00. All sizes are characters (approx tokens uses the chars/4 proxy). Retention < 1.0 means a required signal was lost in the pruned output.
 
 ## Cases
 

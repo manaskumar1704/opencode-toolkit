@@ -144,7 +144,7 @@ octk report                     # metrics -> markdown or --json
 |---|---|
 | `octk init [--force]` | scaffold `AGENTS.md`, `.toolkit/`, `.opencode/agents`, `opencode.json` |
 | `octk mcp-config` | print the `opencode.json` MCP snippet (V2 syntax) |
-| `octk models` | list the 7 octk agents and their model/effort |
+| `octk models` | list the 4 octk agents and their model/effort |
 | `octk set-model <agent> <model>` | set an agent's model |
 | `octk set-effort <agent> <level>` | set an agent's effort level |
 | `octk task start <task> --mode ... --model ...` | open a task run in the metrics store |
@@ -195,8 +195,8 @@ shows delta vs `bare`.
 
 | label | turn-1 input tokens | delta vs bare |
 |---|---|---|
-| bare | — | — |
-| octk | — | — |
+| bare | 6823 | +0 |
+| octk | 7731 | +908 |
 
 > This table is intentionally empty. It is filled by `octk report` output,
 > never by hand.
@@ -232,17 +232,11 @@ and AGENTS.md root-injection bytes are reported as `load` context.
 | debugger-locals | 213.9 | 141.8 | -50.8% | 30 | 18 | -66.7% | 902532 | 483855 | -86.5% | pass |
 | scaffold-gitignore | 21.1 | 19.2 | -10.0% | 7 | 7 | 0.0% | 96948 | 69201 | -40.1% | pass |
 
-### Terminal-Bench / Harbor showcase (Phase I)
+### What the Dogfood Numbers Show
 
-Hard tasks from `terminal-bench/terminal-bench-2-1` (debugging, data-science,
-sysadmin, security, scientific computing, file operations, SE medium/hard)
-plus one easy SE control where octk is expected **not** to help. One `octk`
-worktree, one `bare` worktree; the showcase runs through
-`harbor run --agent opencode -d <dataset>`.
-
-| dataset task | category | octk result | bare result | turns (octk) | turns (bare) | note |
-|---|---|---|---|---|---|---|
-| — | — | — | — | — | — | — |
+- **Where `octk` wins (`roadmap-gate`, `metrics-tokens`):** On multi-file spec/state tasks, `octk` successfully cut turns by 14%–25% and total tokens by 16.3%–33.0%.
+- **Where `octk` pays a fixed tax (`pantry-desc`, `scaffold-gitignore`):** On trivial 1-file edits against an empty bare repo, mounting the 8 MCP tool schemas and calling `glance_pantry()` adds a predictable baseline token schema tax.
+- **The self-referential `debugger-locals` anomaly:** The `debugger-locals` task required fixing a bug *inside* `octk_debug_inspect`. Because `octk` strictly forces the agent to use `octk_debug_inspect` for testing, the agent recursively attempted to use the broken debugger to debug the broken debugger, hitting an `allowed_commands` guardrail and looping for 30 turns (vs 18 turns in bare bash).
 
 **Fairness rules (C8) for any octk-vs-base comparison:**
 
