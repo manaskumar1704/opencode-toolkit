@@ -1,4 +1,11 @@
-# 🔪 octk — The OpenCode Toolkit
+# octk — The OpenCode Toolkit
+
+![Python](https://img.shields.io/badge/Python-3.14-blue?logo=python&logoColor=white)
+![FastMCP](https://img.shields.io/badge/FastMCP-MCP%20Server-orange)
+![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
+![Pytest](https://img.shields.io/badge/Pytest-95%20passing-brightgreen?logo=pytest&logoColor=white)
+![OpenCode](https://img.shields.io/badge/OpenCode-MCP%20Client-111827)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 Just-In-Time Context Routing, TTY-Gated Human Approvals, and Runtime Pruners for AI Coding Agents.
 
