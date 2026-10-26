@@ -10,6 +10,11 @@ from octk.scaffold import init_repo
 
 EXPECTED = [
     ".opencode/commands/ideate.md",
+    ".opencode/agents/plan.md",
+    ".opencode/agents/build.md",
+    ".opencode/agents/explore.md",
+    ".opencode/agents/verifier.md",
+    "opencode.json",
     "AGENTS.md",
     ".toolkit/index.md",
     ".toolkit/config.json",
@@ -55,10 +60,11 @@ def test_gitignore_appended_once(tmp_path: Path) -> None:
 def test_agents_md_rules(tmp_path: Path) -> None:
     init_repo(tmp_path)
     text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    assert len(text.splitlines()) < 25
-    assert "taste" not in text
+    assert len(text.splitlines()) < 30
+    assert "taste" in text
     assert "{{ALWAYS_ON}}" not in text
-    assert "none" in text.splitlines()[7] or "none" in text
+    assert "@verifier" in text
+    assert "none" in text
 
 
 def test_always_on_rendering(tmp_path: Path) -> None:

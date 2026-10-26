@@ -11,3 +11,11 @@ dist/
 .toolkit/metrics.json
 .toolkit/approvals.json
 graphify-out/
+
+# benchmark raw transcripts (summaries + bare_metrics.json stay tracked)
+benchmarks/results/*.jsonl
+benchmarks/results/*.pytest.txt
+benchmarks/results/*_octk.json
+benchmarks/results/*_bare.json
+
+reports/test-results/

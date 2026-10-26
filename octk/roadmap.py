@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import approvals
 from .config import ToolkitPaths
+from .sentinel import SENTINEL_END, SENTINEL_START
 
 LINE_RE = re.compile(r"^\s*- \[( |~|x)\] (.+)$")
 STATUS_ALIASES = {"done": "x", "current": "~", "todo": " "}
@@ -57,20 +58,33 @@ def _select(matches: list[dict[str, object]], task_substring: str) -> dict[str, 
     return matches[0]
 
 
+def _block_line_range(lines: list[str]) -> tuple[int, int]:
+    """Line indices inside the sentinel block, or the whole file when absent."""
+    start: int | None = None
+    end: int | None = None
+    for i, line in enumerate(lines):
+        if SENTINEL_START in line:
+            start = i
+        elif SENTINEL_END in line:
+            end = i
+            break
+    if start is not None and end is not None and end > start:
+        return start + 1, end
+    return 0, len(lines)
+
+
 def _update_current_task(root: Path, action: str, task_text: str) -> None:
-    """Rewrite the '**Current task:**' line in index.md."""
+    """Rewrite the '**Current task:**' line inside the index.md sentinel block."""
     index = ToolkitPaths(root).index
     if not index.exists():
         return
     lines, ending = _read_preserving(index)
     trailing = "\n" if lines and index.read_text(encoding="utf-8").endswith("\n") else ""
-    if action == "current":
-        value = task_text
-    else:
-        value = "none"
+    value = task_text if action == "current" else "none"
     marker = "**Current task:**"
-    for i, line in enumerate(lines):
-        if line.strip().startswith(marker):
+    lo, hi = _block_line_range(lines)
+    for i in range(lo, hi):
+        if lines[i].strip().startswith(marker):
             lines[i] = f"{marker} {value}"
             break
     _write_preserving(index, lines, ending, trailing)

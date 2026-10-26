@@ -17,6 +17,7 @@ EXPECTED_TOOLS = {
     "equip_skill",
     "update_roadmap",
     "run_audit_workflow",
+    "check_spec_drift",
     "debug_inspect",
     "browser_inspect",
 }
@@ -43,7 +44,7 @@ async def _tools_models() -> dict[str, object]:
     return {t.name: t for t in await server.mcp.list_tools()}
 
 
-async def test_seven_tools_exposed(server_root) -> None:
+async def test_eight_tools_exposed(server_root) -> None:
     tools = await _tools_models()
     assert set(tools) == EXPECTED_TOOLS
 

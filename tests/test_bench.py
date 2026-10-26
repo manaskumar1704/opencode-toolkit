@@ -88,7 +88,7 @@ def test_run_tool_bench_pantry_only(tmp_path: Path) -> None:
     results = bench.run_tool_bench(tmp_path, cases=["pantry_glance"])
     names = [c["name"] for c in results["cases"]]
     assert names == ["pantry_glance"]
-    assert results["schema_overhead"]["tools"] == 7
+    assert results["schema_overhead"]["tools"] == 8
     assert isinstance(results["agents_md_bytes"], int)
     json.dumps(results)  # must be JSON-serializable
 
@@ -100,7 +100,7 @@ def test_run_tool_bench_unknown_case(tmp_path: Path) -> None:
 
 def test_schema_overhead_seven_tools() -> None:
     head = bench._schema_overhead()
-    assert head["tools"] == 7
+    assert head["tools"] == 8
     assert head["total_bytes"] > 0
     assert head["schema_bytes"] > 0
 

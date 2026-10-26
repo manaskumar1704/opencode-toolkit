@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -16,7 +17,8 @@ from .approvals import create_approval, list_approvals
 from .config import ToolkitPaths, load_config
 from .metrics import MetricsStore
 from .roadmap import parse_roadmap, set_status
-from .scaffold import init_repo
+from .scaffold import init_repo, opencode_json
+from .templates import AGENT_NAMES
 
 
 def get_root() -> Path:
@@ -149,21 +151,7 @@ def cmd_standing(args: argparse.Namespace) -> int:
 
 def mcp_config_json() -> dict:
     """OpenCode V2 snippet: mcp.servers + permissions rule array."""
-    exe = shutil.which("octk-mcp")
-    command = [exe] if exe else [sys.executable, "-m", "octk.server"]
-    return {
-        "mcp": {
-            "servers": {
-                "octk": {"type": "local", "command": command, "codemode": False},
-            }
-        },
-        "permissions": [
-            {"action": "shell", "resource": "octk approve *", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/approvals.json", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/metrics.json", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/specs/roadmap.md", "effect": "ask"},
-        ],
-    }
+    return opencode_json()
 
 
 def cmd_mcp_config(_args: argparse.Namespace) -> int:
@@ -173,6 +161,107 @@ def cmd_mcp_config(_args: argparse.Namespace) -> int:
         "# - these rules stop a drifting agent, not a determined one (the agent still has shell access)\n"
         "# - if OpenCode launches the server from elsewhere, add \"environment\": {\"OCTK_ROOT\": \"<abs project path>\"}"
     )
+    return 0
+
+
+AGENTS_DIR = ".opencode/agents"
+EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _agent_path(root: Path, name: str) -> Path:
+    return root / AGENTS_DIR / f"{name}.md"
+
+
+def _split_frontmatter(text: str) -> tuple[str, str]:
+    """Return (frontmatter, body). Frontmatter is the leading --- fenced YAML."""
+    if text.startswith("---"):
+        idx = text.find("\n---", 3)
+        if idx != -1:
+            return text[: idx + 4], text[idx + 4 :]
+    return "", text
+
+
+def _frontmatter_field(fm: str, key: str) -> str:
+    match = re.search(rf"(?m)^{key}:\s*(\S+)", fm)
+    return match.group(1) if match else "-"
+
+
+def _check_agent(name: str) -> int | None:
+    """Return an exit code on an invalid agent name, else None."""
+    if name in AGENT_NAMES:
+        return None
+    print(f"unknown agent: {name!r} (choose from {', '.join(AGENT_NAMES)})", file=sys.stderr)
+    return 1
+
+
+def _load_agent_file(root: Path, name: str) -> tuple[Path, str, str] | None:
+    """Return (path, frontmatter, body), or None after printing an error."""
+    path = _agent_path(root, name)
+    if not path.exists():
+        print(f"agent file not found: {path} (run `octk init`)", file=sys.stderr)
+        return None
+    text = path.read_text(encoding="utf-8")
+    fm, body = _split_frontmatter(text)
+    return path, fm, body
+
+
+def cmd_models(_args: argparse.Namespace) -> int:
+    root = get_root()
+    header = f"{'AGENT':<12} {'MODE':<9} {'MODEL':<38} EFFORT"
+    print(header)
+    for name in AGENT_NAMES:
+        path = _agent_path(root, name)
+        if not path.exists():
+            print(f"{name:<12} {'-':<9} {'-':<38} -")
+            continue
+        fm, _ = _split_frontmatter(path.read_text(encoding="utf-8"))
+        mode = _frontmatter_field(fm, "mode")
+        model = _frontmatter_field(fm, "model")
+        effort = _frontmatter_field(fm, "effort")
+        print(f"{name:<12} {mode:<9} {model:<38} {effort}")
+    return 0
+
+
+def cmd_set_model(args: argparse.Namespace) -> int:
+    code = _check_agent(args.agent_name)
+    if code is not None:
+        return code
+    loaded = _load_agent_file(get_root(), args.agent_name)
+    if loaded is None:
+        return 1
+    path, fm, body = loaded
+    new_fm = re.sub(r"(?m)^model:\s*.*$", f"model: {args.model_id}", fm, count=1)
+    if "model:" not in new_fm:
+        print(f"no `model:` line in {path}", file=sys.stderr)
+        return 1
+    path.write_text(new_fm + body, encoding="utf-8")
+    print(f"{args.agent_name} model: {args.model_id}")
+    return 0
+
+
+def cmd_set_effort(args: argparse.Namespace) -> int:
+    code = _check_agent(args.agent_name)
+    if code is not None:
+        return code
+    loaded = _load_agent_file(get_root(), args.agent_name)
+    if loaded is None:
+        return 1
+    path, fm, body = loaded
+    level = args.level
+    new_fm = re.sub(r"(?m)^effort:\s*.*$", f"effort: {level}", fm, count=1)
+    if "effort:" not in new_fm:
+        new_fm = re.sub(
+            r"(?m)^(model:\s*[^\n]*)$", rf"\1\neffort: {level}", new_fm, count=1
+        )
+    # Keep the model line's #variant suffix in sync with effort.
+    new_fm = re.sub(
+        r"(?m)^(model:\s*[^\s#]+)(?:#\S+)?(\s*)$",
+        rf"\1#{level}\2",
+        new_fm,
+        count=1,
+    )
+    path.write_text(new_fm + body, encoding="utf-8")
+    print(f"{args.agent_name} effort: {level}")
     return 0
 
 
@@ -247,6 +336,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mcp = sub.add_parser("mcp-config", help="print the opencode.json snippet (V2 syntax)")
     p_mcp.set_defaults(func=cmd_mcp_config)
+
+    p_models = sub.add_parser("models", help="list the 4 octk agents and their model/effort")
+    p_models.set_defaults(func=cmd_models)
+
+    p_set_model = sub.add_parser("set-model", help="set an agent's model")
+    p_set_model.add_argument("agent_name")
+    p_set_model.add_argument("model_id")
+    p_set_model.set_defaults(func=cmd_set_model)
+
+    p_set_effort = sub.add_parser("set-effort", help="set an agent's effort level")
+    p_set_effort.add_argument("agent_name")
+    p_set_effort.add_argument("level", choices=sorted(EFFORT_LEVELS))
+    p_set_effort.set_defaults(func=cmd_set_effort)
 
     p_bench = sub.add_parser("bench", help="tool-level benchmarks")
     bench_sub = p_bench.add_subparsers(dest="bench_command", required=True)

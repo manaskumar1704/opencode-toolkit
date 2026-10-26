@@ -9,6 +9,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from . import audit as audit_mod
+from . import drift as drift_mod
 from . import pantry, roadmap as roadmap_mod
 from .config import ToolkitPaths, load_config
 from .metrics import MetricsStore
@@ -72,6 +73,17 @@ def update_roadmap(task_substring: str, new_status: str) -> str:
         _log("update_roadmap", "measured", 0, len(line))
         return line
     except Exception as exc:  # noqa: BLE001 - GateError/RoadmapError become strings
+        return f"octk error: {type(exc).__name__}: {exc}"
+
+
+@mcp.tool()
+def check_spec_drift() -> str:
+    """AST spec-to-code drift scan (undocumented symbols/routes vs specs)."""
+    try:
+        result = drift_mod.check_drift(get_root())
+        _log("check_spec_drift", "counterfactual", result.raw_chars, result.pruned_chars)
+        return result.report
+    except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
 
 

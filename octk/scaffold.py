@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 import json
+import shutil
+import sys
 from pathlib import Path
 
 from .config import DEFAULT_CONFIG, load_config
+from .sentinel import upsert_sentinel_block
 from .templates import (
     ACCEPTANCE_MD_TEMPLATE,
+    AGENT_NAMES,
     ARCH_MD_TEMPLATE,
     FLOW_MD_TEMPLATE,
     IDEATE_COMMAND_TEMPLATE,
     INDEX_MD_TEMPLATE,
     ROADMAP_MD_TEMPLATE,
+    render_agent_md,
     render_agents_md,
 )
 
 _MANAGED_FILES = {
     ".opencode/commands/ideate.md": IDEATE_COMMAND_TEMPLATE,
-    "AGENTS.md": None,  # rendered
-    ".toolkit/index.md": INDEX_MD_TEMPLATE,
     ".toolkit/specs/architecture.md": ARCH_MD_TEMPLATE,
     ".toolkit/specs/user_flow.md": FLOW_MD_TEMPLATE,
     ".toolkit/specs/acceptance.md": ACCEPTANCE_MD_TEMPLATE,
@@ -39,6 +42,26 @@ def _render_agents(root: Path) -> str:
     return render_agents_md(server, always_on)
 
 
+def opencode_json() -> dict:
+    """OpenCode V2 config: mcp.servers + permissions rule array."""
+    exe = shutil.which("octk-mcp")
+    command = [exe] if exe else [sys.executable, "-m", "octk.server"]
+    return {
+        "mcp": {
+            "servers": {
+                "octk": {"type": "local", "command": command, "codemode": False},
+            }
+        },
+        "small_model": "opencode-go/deepseek-v4.1-flash",
+        "permissions": [
+            {"action": "shell", "resource": "octk approve *", "effect": "deny"},
+            {"action": "edit", "resource": ".toolkit/approvals.json", "effect": "deny"},
+            {"action": "edit", "resource": ".toolkit/metrics.json", "effect": "deny"},
+            {"action": "edit", "resource": ".toolkit/specs/roadmap.md", "effect": "ask"},
+        ],
+    }
+
+
 def _append_gitignore_once(root: Path) -> bool:
     """Append octk runtime files to .gitignore once; True when changed."""
     gitignore = root / ".gitignore"
@@ -56,6 +79,19 @@ def _append_gitignore_once(root: Path) -> bool:
     return True
 
 
+def _upsert_managed(root: Path, rel: str, content: str, force: bool) -> str | None:
+    """Sentinel-preserving write for AGENTS.md / index.md / agent files.
+
+    Returns "created" when written/changed, "skipped" when already present.
+    """
+    path = root / rel
+    if path.exists() and not force:
+        return "skipped"
+    if upsert_sentinel_block(path, content):
+        return "created"
+    return "skipped"
+
+
 def init_repo(root: Path, force: bool = False) -> dict[str, list[str]]:
     """Create octk files under root; skip existing unless force."""
     created: list[str] = []
@@ -70,23 +106,43 @@ def init_repo(root: Path, force: bool = False) -> dict[str, list[str]]:
         config_path.write_text(json.dumps(DEFAULT_CONFIG, indent=2), encoding="utf-8")
         created.append(config_rel)
 
-    agents_rel = "AGENTS.md"
-    agents_path = root / agents_rel
-    if agents_path.exists() and not force:
-        skipped.append(agents_rel)
-    else:
-        _write_text(agents_path, _render_agents(root))
-        created.append(agents_rel)
+    # Sentinel-preserved: AGENTS.md and .toolkit/index.md
+    for rel, content in (
+        ("AGENTS.md", _render_agents(root)),
+        (".toolkit/index.md", INDEX_MD_TEMPLATE),
+    ):
+        outcome = _upsert_managed(root, rel, content, force)
+        if outcome == "created":
+            created.append(rel)
+        elif outcome == "skipped":
+            skipped.append(rel)
 
+    # Plain managed files: skip existing unless force.
     for rel, template in _MANAGED_FILES.items():
-        if rel == "AGENTS.md":
-            continue
         path = root / rel
         if path.exists() and not force:
             skipped.append(rel)
             continue
         _write_text(path, template or "")
         created.append(rel)
+
+    # Agents: frontmatter authoritative, body sentinel-preserved.
+    for name in AGENT_NAMES:
+        rel = f".opencode/agents/{name}.md"
+        outcome = _upsert_managed(root, rel, render_agent_md(name), force)
+        if outcome == "created":
+            created.append(rel)
+        elif outcome == "skipped":
+            skipped.append(rel)
+
+    # opencode.json
+    opencode_rel = "opencode.json"
+    opencode_path = root / opencode_rel
+    if opencode_path.exists() and not force:
+        skipped.append(opencode_rel)
+    else:
+        _write_text(opencode_path, json.dumps(opencode_json(), indent=2) + "\n")
+        created.append(opencode_rel)
 
     skills_keep = ".toolkit/skills/.gitkeep"
     skills_dir = root / ".toolkit" / "skills"
