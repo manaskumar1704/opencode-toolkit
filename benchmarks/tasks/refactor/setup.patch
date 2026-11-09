@@ -1,0 +1,25 @@
+diff --git a/octk/refactor_target.py b/octk/refactor_target.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/octk/refactor_target.py
+@@ -0,0 +1,19 @@
++"""Deliberately convoluted implementation to simplify."""
++
++
++def _normalise(value):
++    if value < 0:
++        return -value
++    else:
++        return value
++
++
++def _apply(value):
++    return _normalise(value)
++
++
++def magnitude(values):
++    result = []
++    for value in values:
++        result.append(_apply(value))
++    return result

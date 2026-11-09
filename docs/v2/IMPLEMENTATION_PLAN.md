@@ -137,11 +137,11 @@ the durable record.
 | 007 | Capability Selector | ✅ done (`octk/selector.py`) |
 | 010 | Emit `available` / `requires_approval` | ✅ done |
 
-### R-2 Complete the benchmark suite
+### R-2 Complete the benchmark suite ◐
 
-- 7 remaining task fixtures (D4 categories 2–8).
-- Factorial driver with staged gates and stop rule.
-- Randomised run order, ≥5 reps, transcript capture.
+- [x] All 8 task fixtures (D4 categories 1–8).
+- [ ] Factorial driver with staged gates and stop rule.
+- [ ] Randomised run order, ≥5 reps, transcript capture.
 
 ### R-3 External benchmark
 

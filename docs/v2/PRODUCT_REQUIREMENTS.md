@@ -139,7 +139,7 @@ OCTK is **not**:
 - [x] MCP surface is 8 tools.
 - [x] Test suite is green.
 - [x] Capability Selector implemented (ADR-007).
-- [ ] Benchmark suite covers all 8 task categories.
+- [x] Benchmark suite covers all 8 task categories.
 
 ## 7. Compatibility
 

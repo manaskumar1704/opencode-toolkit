@@ -1,0 +1,11 @@
+{
+  "name": "capability_overlap",
+  "category": "capability overlap",
+  "prompt": "Two skills overlap: `code-review` and `code-review-lite`. Choose the one that covers both correctness and style, and write its name into `CHOICE.md`, one line, nothing else.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "CHOICE.md"
+  ]
+}

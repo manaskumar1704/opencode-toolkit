@@ -268,3 +268,36 @@ def test_load_manifests_from_directory(tmp_path: Path) -> None:
     save_manifest(d / "run.json", m)
     loaded = load_manifests(d)
     assert len(loaded) == 1
+
+
+# -- task suite coverage ---------------------------------------------------
+
+EXPECTED_CATEGORIES = {
+    "simple isolated bug",
+    "multi-file feature",
+    "repository exploration",
+    "refactor",
+    "test-failure diagnosis",
+    "browser issue",
+    "architecture drift",
+    "capability overlap",
+}
+
+
+def test_all_eight_categories_present() -> None:
+    from benchmarks.runner import list_tasks
+
+    tasks = list_tasks()
+    assert len(tasks) == 8
+    assert {task["category"] for task in tasks} == EXPECTED_CATEGORIES
+
+
+def test_each_task_has_required_files() -> None:
+    from benchmarks.runner import list_tasks
+
+    for task in list_tasks():
+        directory = Path(task["path"])
+        assert (directory / "task.json").is_file(), task["name"]
+        assert (directory / "setup.patch").is_file(), task["name"]
+        assert (directory / "oracle" / "acceptance.py").is_file(), task["name"]
+        assert task["prompt"].strip(), task["name"]

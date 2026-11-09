@@ -70,6 +70,20 @@ def isolate_run(repo: Path, arm: str, task: str, seed: int, run_order: int) -> t
     return path, run_id
 
 
+def list_tasks(root: Path | None = None) -> list[dict[str, Any]]:
+    """Return every task fixture's metadata, sorted by name."""
+    directory = root or TASKS_DIR
+    tasks: list[dict[str, Any]] = []
+    for task_json in sorted(directory.glob("*/task.json")):
+        try:
+            data = json.loads(task_json.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        data["path"] = str(task_json.parent)
+        tasks.append(data)
+    return tasks
+
+
 def read_task_prompt(task_dir: Path) -> str:
     task_json = task_dir / "task.json"
     if not task_json.exists():

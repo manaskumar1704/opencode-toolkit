@@ -1,0 +1,19 @@
+diff --git a/app/index.html b/app/index.html
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/app/index.html
+@@ -0,0 +1,13 @@
++<!doctype html>
++<html>
++<head><title>Bench app</title></head>
++<body>
++  <button id="go">Go</button>
++  <div id="out"></div>
++  <script>
++    document.getElementById("g0").addEventListener("click", () => {
++      document.getElementById("out").textContent = "done";
++    });
++  </script>
++</body>
++</html>

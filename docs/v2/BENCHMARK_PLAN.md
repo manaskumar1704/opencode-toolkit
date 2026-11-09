@@ -78,14 +78,14 @@ estimate is published before then.
 
 | # | Category | Fixture | Status |
 |---|---|---|---|
-| 1 | Simple isolated bug | `simple_bug` | **implemented** |
-| 2 | Multi-file feature | — | missing |
-| 3 | Repository exploration | — | missing |
-| 4 | Refactor | — | missing |
-| 5 | Test-failure diagnosis | — | missing |
-| 6 | Browser issue | — | missing |
-| 7 | Architecture drift | — | missing |
-| 8 | Capability overlap | — | missing |
+| 1 | Simple isolated bug | `simple_bug` | implemented |
+| 2 | Multi-file feature | `multi_file_feature` | implemented |
+| 3 | Repository exploration | `repo_exploration` | implemented |
+| 4 | Refactor | `refactor` | implemented |
+| 5 | Test-failure diagnosis | `test_diagnosis` | implemented |
+| 6 | Browser issue | `browser_issue` | implemented |
+| 7 | Architecture drift | `architecture_drift` | implemented |
+| 8 | Capability overlap | `capability_overlap` | implemented |
 
 Each fixture: `task.json`, `setup.patch`, hidden `oracle/acceptance.py`.
 

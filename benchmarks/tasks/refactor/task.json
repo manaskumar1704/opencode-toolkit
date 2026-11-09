@@ -1,0 +1,11 @@
+{
+  "name": "refactor",
+  "category": "refactor",
+  "prompt": "Simplify `octk/refactor_target.py` without changing behaviour. Remove the redundant `_apply` indirection and keep the public `magnitude` function.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "octk/refactor_target.py"
+  ]
+}

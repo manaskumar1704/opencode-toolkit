@@ -1,0 +1,26 @@
+diff --git a/octk/diag_source.py b/octk/diag_source.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/octk/diag_source.py
+@@ -0,0 +1,9 @@
++"""Source under test for the diagnosis task."""
++
++
++def parse_pairs(text):
++    pairs = {}
++    for line in text.splitlines():
++        key, value = line.split("=")
++        pairs[key] = value
++    return pairs
+diff --git a/tests/test_diag_source.py b/tests/test_diag_source.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/test_diag_source.py
+@@ -0,0 +1,5 @@
++from octk.diag_source import parse_pairs
++
++
++def test_ignores_blank_lines():
++    assert parse_pairs("a=1\n\nb=2") == {"a": "1", "b": "2"}

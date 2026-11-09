@@ -149,7 +149,7 @@ Build: setuptools ≥75. Python: **≥3.11**.
 | Discovery failure gives no reason | Resolved | `DiscoveryResult.reason` (ADR-004) |
 | `browser_inspect` always exposed | Resolved | `OCTK_BROWSER=0` drops the tool (ADR-005) |
 | Adapter returns raw dicts | Resolved | Adapters emit validated `CapabilityRecord` (ADR-003) |
-| Benchmark suite incomplete (1 of 8 categories) | High for evaluation validity | No v2 performance claim may be made yet |
+| Benchmark suite incomplete (1 of 8 categories) | Resolved | All 8 fixtures implemented and verified (oracle fails before fix, passes after) |
 | No external benchmark selected | Medium | Generalisation unproven |
 | MCP surface 8 > target 6 | Low | Accepted; schema cost measured at 2,499 chars |
 
