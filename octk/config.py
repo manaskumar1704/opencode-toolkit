@@ -66,6 +66,38 @@ class ToolkitPaths:
     def config(self) -> Path:
         return self.toolkit / "config.json"
 
+    @property
+    def capabilities(self) -> Path:
+        return self.toolkit / "capabilities"
+
+    @property
+    def capabilities_index(self) -> Path:
+        return self.capabilities / "index.json"
+
+    @property
+    def capabilities_local(self) -> Path:
+        return self.capabilities / "local.json"
+
+
+def user_toolkit_dir() -> Path:
+    """User-scope octk state root.
+
+    Precedence: ``OCTK_USER_CONFIG``, then ``XDG_CONFIG_HOME/octk``,
+    then ``~/.config/octk``. Only the capability registry uses this;
+    project state stays under ``<root>/.toolkit``.
+    """
+    override = os.environ.get("OCTK_USER_CONFIG")
+    if override:
+        return Path(override)
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "octk"
+
+
+def user_capabilities_index() -> Path:
+    """User-scope capability index path."""
+    return user_toolkit_dir() / "capabilities" / "index.json"
+
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge override on top of base; dict values merge recursively."""

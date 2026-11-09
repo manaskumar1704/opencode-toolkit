@@ -88,7 +88,7 @@ def test_run_tool_bench_pantry_only(tmp_path: Path) -> None:
     results = bench.run_tool_bench(tmp_path, cases=["pantry_glance"])
     names = [c["name"] for c in results["cases"]]
     assert names == ["pantry_glance"]
-    assert results["schema_overhead"]["tools"] == 9
+    assert results["schema_overhead"]["tools"] == 10
     assert isinstance(results["agents_md_bytes"], int)
     json.dumps(results)  # must be JSON-serializable
 
@@ -98,9 +98,11 @@ def test_run_tool_bench_unknown_case(tmp_path: Path) -> None:
         bench.run_tool_bench(tmp_path, cases=["nope"])
 
 
-def test_schema_overhead_nine_tools() -> None:
+def test_schema_overhead_tool_count() -> None:
+    # 10 tools after the Phase 1 capability_registry addition.
+    # Handoff B4 targets <=6; that reduction is T7.1 and is approval-gated.
     head = bench._schema_overhead()
-    assert head["tools"] == 9
+    assert head["tools"] == 10
     assert head["total_bytes"] > 0
     assert head["schema_bytes"] > 0
 
