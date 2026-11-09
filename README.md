@@ -1,6 +1,6 @@
 # octk — The OpenCode Toolkit
 
-![Python](https://img.shields.io/badge/Python-3.14-blue?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
 ![FastMCP](https://img.shields.io/badge/FastMCP-MCP%20Server-orange)
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Pytest](https://img.shields.io/badge/Pytest-123%20passing-brightgreen?logo=pytest&logoColor=white)
