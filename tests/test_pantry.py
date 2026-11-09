@@ -55,3 +55,39 @@ def test_equip_skill_invalid_name(tmp_root) -> None:
 
     with pytest.raises(NameError):
         equip_skill(tmp_root, "bad name!")
+
+
+def test_glance_prefers_registry_description(tmp_root, monkeypatch) -> None:
+    from octk.capabilities import record_from_dict, sync_discovered
+    from octk.pantry import glance
+
+    monkeypatch.setenv("OCTK_USER_CONFIG", str(tmp_root / "userconfig"))
+    skills = tmp_root / ".toolkit" / "skills"
+    (skills / "mystyle.md").write_text("# File heading\nbody", encoding="utf-8")
+    record = record_from_dict(
+        {
+            "id": "octk_native:octk/skill-mystyle",
+            "type": "octk_native",
+            "name": "mystyle",
+            "description": "From registry",
+            "provenance": "octk_provided",
+        },
+        scope="project",
+    )
+    sync_discovered(tmp_root, [record])
+
+    result = glance(tmp_root)
+
+    assert "mystyle (From registry)" in result.text
+
+
+def test_glance_bounded_read_ignores_far_description(tmp_root) -> None:
+    from octk.pantry import glance
+
+    skills = tmp_root / ".toolkit" / "skills"
+    body = "x" * 5000 + "\ndescription: too late\n"
+    (skills / "late.md").write_text(body, encoding="utf-8")
+
+    result = glance(tmp_root)
+
+    assert "too late" not in result.text

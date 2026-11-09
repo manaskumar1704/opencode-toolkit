@@ -6,9 +6,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .capabilities import load_registry
 from .config import ToolkitPaths, load_config
 
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+HEAD_CHARS = 4096
 
 
 class NameError(ValueError):  # noqa: A001 - literal stdlib-shadowing is intentional
@@ -41,9 +43,46 @@ def _dir_listing(directory: Path) -> list[Path]:
     return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix == ".md")
 
 
+def _bounded_desc(path: Path) -> str:
+    """Description from at most HEAD_CHARS of the file, never a full read."""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            return _desc_from_md(handle.read(HEAD_CHARS))
+    except OSError:
+        return path.stem
+
+
+def _registry_descriptions(root: Path) -> dict[str, str]:
+    """Descriptions already recorded by the capability registry.
+
+    Keys are ``kind:stem`` so a spec and an extra skill with the same name do
+    not collide. Registry descriptions are truncated to the glance budget.
+    """
+    try:
+        registry = load_registry(root)
+    except Exception:  # noqa: BLE001 - glance must never fail on the registry
+        return {}
+    out: dict[str, str] = {}
+    for record in registry.records:
+        if record.type != "octk_native":
+            continue
+        kind = "spec" if record.id.endswith(f"/spec-{record.name}") else "skill"
+        out[f"{kind}:{record.name}"] = record.description[:80]
+    return out
+
+
+def _describe(path: Path, kind: str, known: dict[str, str]) -> str:
+    """Prefer the registry; fall back to a bounded head read."""
+    recorded = known.get(f"{kind}:{path.stem}")
+    if recorded:
+        return recorded
+    return _bounded_desc(path)
+
+
 def glance(root: Path) -> PantryResult:
     """Index summary plus skills/specs inventories and honest size delta."""
     paths = ToolkitPaths(root)
+    known = _registry_descriptions(root)
     parts: list[str] = []
     if paths.index.exists():
         parts.append(paths.index.read_text(encoding="utf-8").rstrip())
@@ -51,7 +90,7 @@ def glance(root: Path) -> PantryResult:
     for path in _dir_listing(paths.skills):
         if path.name == ".gitkeep":
             continue
-        skills.append(f"{path.stem} ({_desc_from_md(path.read_text(encoding='utf-8'))})")
+        skills.append(f"{path.stem} ({_describe(path, 'skill', known)})")
     if skills:
         parts.append("Skills: " + ", ".join(skills))
     parts.append(
