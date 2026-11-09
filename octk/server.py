@@ -9,10 +9,9 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from . import audit as audit_mod
 from . import capabilities as capabilities_mod
 from . import drift as drift_mod
-from . import pantry, roadmap as roadmap_mod
+from . import pantry
 from .config import ToolkitPaths, load_config
 from .mcp_proxy import (
     ExternalMcpError,
@@ -151,35 +150,12 @@ def equip_skill(skill_name: str) -> str:
 
 
 @mcp.tool()
-def update_roadmap(task_substring: str, new_status: str) -> str:
-    """Update one roadmap line; 'done' needs prior `octk approve` (human)."""
-    try:
-        line = roadmap_mod.set_status(get_root(), task_substring, new_status)
-        _log("update_roadmap", "measured", 0, len(line))
-        return line
-    except Exception as exc:  # noqa: BLE001 - GateError/RoadmapError become strings
-        return f"octk error: {type(exc).__name__}: {exc}"
-
-
-@mcp.tool()
 def check_spec_drift() -> str:
     """AST spec-to-code drift scan (undocumented symbols/routes vs specs)."""
     try:
         result = drift_mod.check_drift(get_root())
         _log("check_spec_drift", "counterfactual", result.raw_chars, result.pruned_chars)
         return result.report
-    except Exception as exc:  # noqa: BLE001
-        return f"octk error: {type(exc).__name__}: {exc}"
-
-
-@mcp.tool()
-def run_audit_workflow(audit_cmd: str = "") -> str:
-    """Run graph-freshness then audit; instruct mode advises, never executes."""
-    try:
-        result = audit_mod.run_audit_workflow(get_root(), load_config(get_root()), audit_cmd=audit_cmd)
-        kind = "measured" if load_config(get_root()).get("audit_mode") == "subprocess" else "load"
-        _log("run_audit_workflow", kind, result.raw_chars, result.pruned_chars)
-        return result.text
     except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
 

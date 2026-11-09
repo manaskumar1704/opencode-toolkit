@@ -19,11 +19,10 @@ Rules, in order:
 3. Delegate by shape: codebase search, import tracing, and long-file/log
    summaries -> `@explore`; zero-context spec critique and runtime verification
    ({{server_name}}_debug_inspect, {{server_name}}_browser_inspect,
-   {{server_name}}_check_spec_drift, {{server_name}}_run_audit_workflow) ->
-   `@verifier`.
+   {{server_name}}_check_spec_drift) -> `@verifier`.
 4. Never mark a roadmap item `[x]` yourself: pass verification first, then ask the
-   user to run `octk approve "<task>"` and call
-   {{server_name}}_update_roadmap(task, "done").
+   user to run `octk approve "<task>"` followed by
+   `octk roadmap set "<task>" done`.
 5. Fast-Path (1-File Trivial Edits): if the user prompt explicitly names a single
    target file and a self-contained 1-line/small fix that does not alter
    architecture or roadmap state, skip {{server_name}}_glance_pantry() /

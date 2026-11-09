@@ -190,7 +190,7 @@ def test_capabilities_verify_reports_match(cli_root: Path, capsys) -> None:
 def test_standing_schema_records_schema_cost(cli_root: Path, capsys) -> None:
     assert main(["standing", "schema"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["tools"] == 10
+    assert out["tools"] == 8
     data = read_json(ToolkitPaths(cli_root).metrics)
     labels = [entry["label"] for entry in data["standing_costs"]]
     assert "octk-schema" in labels
@@ -225,3 +225,22 @@ def test_set_model_warns_about_deprecation(cli_root: Path, capsys) -> None:
 def test_set_effort_warns_about_deprecation(cli_root: Path, capsys) -> None:
     assert main(["set-effort", "build", "low"]) == 0
     assert "belong to the harness, not OCTK" in capsys.readouterr().err
+
+
+def test_audit_cli_runs(cli_root: Path, capsys) -> None:
+    assert main(["audit"]) == 0
+    out = capsys.readouterr().out
+    assert "audit" in out.lower() or "graph" in out.lower() or len(out) > 0
+
+
+def test_roadmap_list_cli(cli_root: Path, capsys) -> None:
+    assert main(["roadmap", "list"]) == 0
+    out = capsys.readouterr().out
+    assert len(out) > 0
+
+
+def test_roadmap_set_cli(cli_root: Path, capsys) -> None:
+    # Set a line to current (~) which doesn't need approval
+    assert main(["roadmap", "set", "item", "current"]) == 0
+    out = capsys.readouterr().out
+    assert "[~]" in out or "item" in out

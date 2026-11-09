@@ -16,8 +16,6 @@ EXPECTED_TOOLS = {
     "capability_registry",
     "equip_spec",
     "equip_skill",
-    "update_roadmap",
-    "run_audit_workflow",
     "check_spec_drift",
     "debug_inspect",
     "browser_inspect",
@@ -80,13 +78,6 @@ async def test_capability_registry_unknown_id_is_an_error_string(server_root) ->
     assert result.startswith("octk error:")
 
 
-async def test_update_roadmap_has_no_user_approved(server_root) -> None:
-    tools = await _tools_models()
-    tool = tools["update_roadmap"]
-    schema = getattr(tool, "parameters", None) or tool.inputSchema
-    assert "user_approved" not in json.dumps(schema)
-
-
 async def test_equip_spec_rejects_traversal(server_root) -> None:
     tools = await _tools()
     result = tools["equip_spec"].fn("../etc/passwd")
@@ -103,8 +94,3 @@ async def test_glance_and_equip_log_records(server_root) -> None:
     assert "load" in kinds
 
 
-async def test_update_roadmap_gate_returns_error_string(server_root) -> None:
-    tools = await _tools()
-    result = tools["update_roadmap"].fn("item", "done")
-    assert result.startswith("octk error:")
-    assert "GateError" in result

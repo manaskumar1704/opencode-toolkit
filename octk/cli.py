@@ -19,6 +19,7 @@ from .config import ToolkitPaths, load_config
 from .doctor import format_doctor, run_doctor
 from .handoff import generate_handoff
 from .metrics import MetricsStore, approx_tokens
+from .audit import run_audit_workflow as run_audit
 from .roadmap import parse_roadmap, set_status
 from .scaffold import init_repo
 
@@ -455,6 +456,31 @@ def cmd_providers(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    """Run the audit workflow (graph freshness + Ponytail review)."""
+    paths = ToolkitPaths(get_root())
+    cfg = load_config(paths.root)
+    result = run_audit(paths.root, cfg, audit_cmd=args.audit_cmd)
+    print(result.text)
+    return 0
+
+
+def cmd_roadmap(args: argparse.Namespace) -> int:
+    """Roadmap operations: list or set a line's status."""
+    paths = ToolkitPaths(get_root())
+    if args.roadmap_command == "list":
+        for line in _roadmap_lines(paths.root):
+            print(line)
+        return 0
+    try:
+        line = set_status(paths.root, args.task_substring, args.new_status)
+        print(line)
+        return 0
+    except Exception as exc:  # noqa: BLE001 - GateError/RoadmapError become strings
+        print(f"octk error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     from .capabilities import CAPABILITY_TYPES
 
@@ -570,6 +596,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_providers = sub.add_parser("providers", help="report external provider status")
     p_providers.add_argument("--json", action="store_true")
     p_providers.set_defaults(func=cmd_providers)
+
+    p_audit = sub.add_parser("audit", help="run graph-freshness + audit workflow")
+    p_audit.add_argument("--audit-cmd", default="", help="override audit command")
+    p_audit.set_defaults(func=cmd_audit)
+
+    p_roadmap = sub.add_parser("roadmap", help="roadmap operations")
+    roadmap_sub = p_roadmap.add_subparsers(dest="roadmap_command", required=True)
+    p_roadmap_list = roadmap_sub.add_parser("list", help="list roadmap lines")
+    p_roadmap_list.set_defaults(func=cmd_roadmap)
+    p_roadmap_set = roadmap_sub.add_parser("set", help="set a roadmap line's status")
+    p_roadmap_set.add_argument("task_substring")
+    p_roadmap_set.add_argument("new_status")
+    p_roadmap_set.set_defaults(func=cmd_roadmap)
 
     p_bench = sub.add_parser("bench", help="tool-level benchmarks")
     bench_sub = p_bench.add_subparsers(dest="bench_command", required=True)
