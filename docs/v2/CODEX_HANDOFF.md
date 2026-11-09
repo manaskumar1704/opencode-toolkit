@@ -9,7 +9,7 @@
 | Supersedes | `OCTK_v2_Codex_Handoff_and_Benchmark_Plan.md` (repository root, untracked, now removed) |
 | Canonical location | `docs/v2/CODEX_HANDOFF.md` — this file. Do not keep copies elsewhere. |
 | Execution harness | OpenCode |
-| Initial model | `beam-free` (normally `opencode/beam-free`) — verify before use, see D2 |
+| Initial model | `opencode-go/beam-free` (catalogue entry `beam-free`) — verify before use, see D2 |
 | Assignment | Inspect and plan only. No refactor, no implementation, until the maintainer approves the plan. |
 
 ### Audience map
@@ -436,18 +436,21 @@ A result belongs to the **complete configuration**: model + harness + toolchain 
 
 ### D2. Fixed configuration and availability protocol
 
-**Configuration:** OpenCode harness, `beam-free` model.
+**Configuration:** OpenCode harness, model `opencode-go/beam-free` (catalogue entry `beam-free`), **effort/variant set to `high`**.
 
 Before any run:
 
 - [ ] Capture OpenCode version (`opencode --version`).
 - [ ] Confirm `beam-free` appears in `opencode models` and is selectable.
 - [ ] Record exact provider/model ID and metadata.
+- [ ] **Verify the selected effort/variant is `high`** (OpenCode agent config / `octk set-effort` value or the harness equivalent). A run at any other effort is a different cohort, not a comparable result.
 - [ ] Record provider rate limits, retry behaviour, and free-tier terms.
 - [ ] Snapshot effective config: permissions, plugins, MCP servers, skills, environment.
 - [ ] Confirm tool-calling support and note that behaviour can change across provider updates.
 
 **Fallback policy:** if `beam-free` is unavailable, do **not** substitute. Mark the run `BLOCKED`, or start a separately labelled model cohort with its own report. Free models are rate-limited and can be withdrawn; results are tied to a snapshot date and are not model-independent findings.
+
+**Effort policy:** the benchmark model is fixed at `beam-free` **and** `high` effort for the entire primary cohort. Mixing effort levels inside one cohort invalidates the comparison, because effort changes how much the model reasons. A `medium`/`max` cohort is a separate, separately labelled cohort.
 
 ### D3. Factorial design and cost model
 
@@ -704,7 +707,7 @@ Verify against current documentation before editing configuration:
 - Config and MCP servers: <https://opencode.ai/docs/config>
 - Agents and permissions: <https://opencode.ai/docs/agents>
 - Model IDs use `provider/model-id`.
-- Observed Beam Free catalogue entry: `beam-free`. Confirm locally with `opencode models`.
+- Observed Beam Free catalogue entry: `beam-free`, full model ID `opencode-go/beam-free`. Confirm locally with `opencode models`.
 
 Do not copy the old README's OpenCode configuration blindly — its MCP schema and permission syntax may be stale. Current documentation takes precedence.
 
