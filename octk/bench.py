@@ -208,6 +208,11 @@ def _schema_overhead() -> dict[str, Any]:
     }
 
 
+def schema_overhead() -> dict[str, Any]:
+    """Public view of the model-visible tool-schema cost."""
+    return _schema_overhead()
+
+
 def run_tool_bench(root: Path, cases: list[str] | None = None) -> dict[str, Any]:
     """Run bench cases and return the results dict (JSON-serializable)."""
     unknown = [n for n in (cases or []) if n not in CASE_NAMES]
