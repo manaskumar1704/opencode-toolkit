@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
+
+from ..diagnostics import DiagnosticResult, build_result
 
 MAX_ELEMENT_TEXT = 60
 
@@ -13,6 +15,10 @@ class BrowserResult:
     text: str
     raw_chars: int
     pruned_chars: int
+
+    def diagnostic(self, required_signals: Iterable[str] = ()) -> DiagnosticResult:
+        """Measure this snapshot against the signals it was required to keep."""
+        return build_result("browser", self.text, self.raw_chars, required_signals)
 
 
 def _short(text: Any, limit: int) -> str:

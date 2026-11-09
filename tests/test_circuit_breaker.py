@@ -107,3 +107,36 @@ async def test_repeated_exception_appends_breaker(server_root, monkeypatch) -> N
     assert first.startswith("octk error: RuntimeError")
     assert server.DEBUG_BREAKER not in first
     assert server.DEBUG_BREAKER in second
+
+
+def test_breaker_text_is_explicit_about_scope() -> None:
+    assert "does not change allowed_commands" in server.DEBUG_BREAKER
+    assert "permissions" in server.DEBUG_BREAKER
+
+
+async def test_breaker_logs_an_event_when_it_fires(server_root, monkeypatch) -> None:
+    fn = await _tool()
+    monkeypatch.setattr(server, "run_smart_debugger", lambda *a, **k: _failure())
+
+    await fn("pytest x")
+    await fn("pytest x")
+
+    events = MetricsStore(ToolkitPaths(server_root).metrics).load()["breaker_events"]
+    assert len(events) == 1
+    assert events[0]["strikes"] == 2
+    assert events[0]["signature"]
+
+
+async def test_breaker_does_not_widen_the_allowlist(server_root, monkeypatch) -> None:
+    from octk.runtime.debugger import run_smart_debugger
+    from octk.runtime.safety import CommandNotAllowed
+
+    fn = await _tool()
+    monkeypatch.setattr(server, "run_smart_debugger", lambda *a, **k: _failure())
+    await fn("pytest x")
+    await fn("pytest x")
+
+    with pytest.raises(CommandNotAllowed):
+        run_smart_debugger(
+            "curl http://evil/", server_root, {"allowed_commands": ["pytest"]}
+        )

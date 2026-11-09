@@ -152,3 +152,47 @@ def test_real_run_reports_returncode_and_error_line(tmp_path: Path) -> None:
     result = run_smart_debugger("pytest tests/test_x.py", tmp_path, None)
     assert result.returncode != 0
     assert "signature-boom" in result.error_line
+
+
+def test_real_run_reports_signal_retention(tmp_path: Path) -> None:
+    script = tmp_path / "app.py"
+    script.write_text(
+        "payload = {'deep': 'value'}\n"
+        "def boom():\n"
+        "    raise RuntimeError('kaboom-retained')\n"
+        "boom()\n",
+        encoding="utf-8",
+    )
+    result = run_smart_debugger(
+        f"python {script}",
+        tmp_path,
+        {"allowed_commands": ["python"], "command_timeout_s": 60},
+    )
+
+    diagnostic = result.diagnostic(required_signals=("kaboom-retained", "payload"))
+
+    assert diagnostic.signal_retained is True
+    assert diagnostic.dropped_signals == ()
+
+
+def test_third_party_signal_is_reported_as_dropped(tmp_path: Path) -> None:
+    from octk.diagnostics import build_result
+
+    # Token must not appear in tmp_path, which embeds the test name.
+    noise = "noise_marker_x"
+    raw = (
+        '  File "/usr/lib/python3/x.py", line 1, in f\n'
+        f"    {noise} = 1\n"
+        f'  File "{tmp_path}/app.py", line 2, in g\n'
+        "    return 1\n"
+        "E   ValueError: boom\n"
+    )
+
+    pruned = prune_output(raw, tmp_path)
+    diagnostic = build_result(
+        "debug", pruned, len(raw), [noise, "ValueError: boom"]
+    )
+
+    assert "ValueError: boom" in pruned
+    assert diagnostic.dropped_signals == (noise,)
+    assert diagnostic.signal_retained is False

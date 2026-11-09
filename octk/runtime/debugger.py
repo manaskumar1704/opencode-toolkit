@@ -10,11 +10,14 @@ import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 from ..config import DEFAULT_CONFIG
+from ..diagnostics import DiagnosticResult, build_result
 from . import safety
 
 EXCLUDED_PARTS = {".venv", "venv", "site-packages", "node_modules", "__pycache__"}
+_DRIVE_RE = re.compile(r"^[A-Za-z]:/")
 PYTEST_HEADER_RE = re.compile(r"^(?P<path>[\w~./\\: -]*\.py):(?P<line>\d+):[ ]?(?P<msg>.*)$")
 PY_FILE_RE = re.compile(r"^(?P<path>[\w~./\\: -]*\.py):(?P<line>\d+):")
 STD_FRAME_RE = re.compile(r'^\s*File "(?P<path>[^"]+)", line (?P<line>\d+), in (?P<func>.*)$')
@@ -32,6 +35,10 @@ class DebugResult:
     pruned_chars: int
     returncode: int = 0
     error_line: str = ""
+
+    def diagnostic(self, required_signals: Iterable[str] = ()) -> DiagnosticResult:
+        """Measure this run against the signals it was required to keep."""
+        return build_result("debug", self.text, self.raw_chars, required_signals)
 
 
 def normalize_command(command: str) -> str:
@@ -67,10 +74,29 @@ def failure_signature(command: str, returncode: int | None, error_line: str) -> 
 
 
 def _norm(path_str: str, root: Path) -> Path | None:
-    """Resolve a printed path (relative or absolute, / or \\) under root."""
+    """Resolve a printed path (relative or absolute, / or \\) under root.
+
+    Windows drive paths are compared textually. On POSIX, ``Path("C:/x")`` is
+    a *relative* path, which previously made every Windows path look
+    project-local as soon as the root also looked like a Windows path.
+    """
     clean = path_str.strip().strip('"').replace("\\", "/")
     if not clean:
         return None
+
+    root_str = str(root).replace("\\", "/").rstrip("/")
+
+    if _DRIVE_RE.match(clean):
+        if not _DRIVE_RE.match(root_str):
+            return None
+        if not (
+            clean.lower() == root_str.lower()
+            or clean.lower().startswith(root_str.lower() + "/")
+        ):
+            return None
+        rel = clean[len(root_str):].lstrip("/")
+        return root / rel if rel else root
+
     candidate = Path(clean)
     if not candidate.is_absolute():
         candidate = root / candidate

@@ -14,6 +14,7 @@ _SCHEMA: dict[str, Any] = {
     "tasks": [],
     "unattributed": [],
     "standing_costs": [],
+    "breaker_events": [],
     "debug_state": {"active_task": None, "signature": None, "strikes": 0, "detail": ""},
 }
 
@@ -53,6 +54,7 @@ class MetricsStore:
             "tasks": [dict(t) for t in stored.get("tasks", [])],
             "unattributed": list(stored.get("unattributed", [])),
             "standing_costs": list(stored.get("standing_costs", [])),
+            "breaker_events": list(stored.get("breaker_events", [])),
             "debug_state": {
                 "active_task": debug_state.get("active_task"),
                 "signature": debug_state.get("signature"),
@@ -181,6 +183,28 @@ class MetricsStore:
         """Record a measured turn-1 input-token standing cost."""
         entry = {"label": label, "tokens_in": int(tokens_in)}
         self._data.setdefault("standing_costs", []).append(entry)
+        self._save()
+        return entry
+
+    def record_breaker(
+        self,
+        strikes: int,
+        signature: str | None,
+        detail: str = "",
+        ts: float | None = None,
+    ) -> dict[str, Any]:
+        """Log that the debugger circuit breaker fired.
+
+        The breaker is an escalation signal, not a permission change: it never
+        widens ``allowed_commands`` and never alters the shell boundary.
+        """
+        entry = {
+            "strikes": int(strikes),
+            "signature": signature,
+            "detail": str(detail)[:500],
+            "ts": ts if ts is not None else time.time(),
+        }
+        self._data.setdefault("breaker_events", []).append(entry)
         self._save()
         return entry
 
