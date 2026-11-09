@@ -102,7 +102,7 @@ def capability_record(
             "schema_ref": None,
             "state": status.state,
         },
-        "permissions": {"side_effects": ["read_only"]},
+        "permissions": {"side_effects": ["read_only"], "requires_approval": False},
         "cost": None,
         "provenance": "discovered",
         "verified_at": today or date.today().isoformat(),

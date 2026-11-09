@@ -34,7 +34,10 @@ def _opencode_json(root: Path, servers: dict) -> None:
 
 def test_detect_returns_none_without_harness(tmp_path: Path) -> None:
     assert OpenCodeAdapter(tmp_path).detect() is None
-    assert discover(tmp_path) == []
+    outcome = discover(tmp_path)
+    assert len(outcome) == 0
+    assert outcome.reason is not None
+    assert "no supported harness" in outcome.reason
 
 
 def test_detect_reports_opencode_json(tmp_path: Path) -> None:
@@ -52,8 +55,8 @@ def test_discovers_skills_commands_mcp_and_specs(tmp_root: Path) -> None:
         {"context7": {"type": "local", "command": ["npx", "-y", "context7"]}},
     )
 
-    records = discover(tmp_root)
-    ids = {record["id"] for record in records}
+    records = list(discover(tmp_root))
+    ids = {record.id for record in records}
 
     assert "skill:ponytail/ponytail" in ids
     assert "command:opencode/review" in ids
@@ -61,11 +64,21 @@ def test_discovers_skills_commands_mcp_and_specs(tmp_root: Path) -> None:
     assert any(item.startswith("octk_native:octk/spec-") for item in ids)
 
 
+def test_records_are_validated_capability_records(tmp_root: Path) -> None:
+    _skill(tmp_root, "demo", "Demo skill")
+
+    records = list(discover(tmp_root))
+
+    assert records
+    assert all(record.type for record in records)
+    assert all(record.scope == "project" for record in records)
+
+
 def test_descriptions_are_truncated(tmp_path: Path) -> None:
     _skill(tmp_path, "long", "y" * 400)
-    records = discover(tmp_path)
-    skill = next(r for r in records if r["type"] == "skill")
-    assert len(skill["description"]) <= 140
+    records = list(discover(tmp_path))
+    skill = next(record for record in records if record.type == "skill")
+    assert len(skill.description) <= 140
 
 
 def test_mcp_arguments_are_not_stored(tmp_path: Path) -> None:
@@ -79,18 +92,19 @@ def test_mcp_arguments_are_not_stored(tmp_path: Path) -> None:
         },
     )
 
-    records = discover(tmp_path)
+    records = list(discover(tmp_path))
 
-    assert "SUPERSECRET" not in json.dumps(records)
-    server = next(r for r in records if r["type"] == "mcp_server")
-    assert server["invocation"]["command"] == "node"
+    serialised = json.dumps([record.to_dict() for record in records])
+    assert "SUPERSECRET" not in serialised
+    server = next(record for record in records if record.type == "mcp_server")
+    assert server.invocation["command"] == "node"
 
 
 def test_malformed_opencode_json_is_tolerated(tmp_path: Path) -> None:
     (tmp_path / "opencode.json").write_text("{not json", encoding="utf-8")
-    records = discover(tmp_path)
+    records = list(discover(tmp_path))
     # Provider records are still emitted; the malformed MCP block is skipped.
-    assert not any(record["type"] == "mcp_server" for record in records)
+    assert not any(record.type == "mcp_server" for record in records)
 
 
 def test_discovery_is_read_only(tmp_path: Path) -> None:
@@ -102,8 +116,8 @@ def test_discovery_is_read_only(tmp_path: Path) -> None:
         if path.is_file()
     }
 
-    first = discover(tmp_path)
-    second = discover(tmp_path)
+    first = list(discover(tmp_path))
+    second = list(discover(tmp_path))
 
     after = {
         (path, path.stat().st_mtime_ns, path.stat().st_size)
@@ -111,7 +125,7 @@ def test_discovery_is_read_only(tmp_path: Path) -> None:
         if path.is_file()
     }
     assert before == after
-    assert [r["id"] for r in first] == [r["id"] for r in second]
+    assert [record.id for record in first] == [record.id for record in second]
 
 
 def test_install_hints_point_at_missing_pieces(tmp_path: Path) -> None:

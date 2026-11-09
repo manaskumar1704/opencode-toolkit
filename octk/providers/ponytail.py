@@ -128,7 +128,7 @@ def capability_records(
                 "command": None,
                 "schema_ref": status.detail,
             },
-            "permissions": {"side_effects": ["read_only"]},
+            "permissions": {"side_effects": ["read_only"], "requires_approval": False},
             "cost": None,
             "provenance": "discovered",
             "verified_at": today or date.today().isoformat(),

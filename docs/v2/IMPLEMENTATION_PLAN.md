@@ -126,16 +126,16 @@ the durable record.
 
 ## 3. Remaining work
 
-### R-1 Close open ADRs
+### R-1 Close open ADRs ✅
 
-| ADR | Task | Estimate |
+| ADR | Task | Status |
 |---|---|---|
-| 003 | Return `CapabilityRecord` from adapters | 1 h |
-| 004 | Discovery failure returns a reason | 1 h |
-| 005 | Feature-flag `browser_inspect` | 2 h |
-| 006 | Declare Python-only coverage | 15 min |
-| 007 | Capability Selector | 1–2 days |
-| 010 | Emit `available` / `requires_approval` | 1 h |
+| 003 | Return `CapabilityRecord` from adapters | ✅ done |
+| 004 | Discovery failure returns a reason | ✅ done |
+| 005 | Feature-flag `browser_inspect` | ✅ done (`OCTK_BROWSER`) |
+| 006 | Declare Python-only coverage | ✅ done |
+| 007 | Capability Selector | ✅ done (`octk/selector.py`) |
+| 010 | Emit `available` / `requires_approval` | ✅ done |
 
 ### R-2 Complete the benchmark suite
 

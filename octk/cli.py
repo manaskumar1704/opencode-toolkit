@@ -362,19 +362,27 @@ def cmd_capabilities(args: argparse.Namespace) -> int:
 
     if sub == "discover":
         adapter = OpenCodeAdapter(root)
-        if adapter.detect() is None:
-            print("no supported harness detected; nothing to discover", file=sys.stderr)
+        outcome = adapter.discover_capabilities()
+        if not outcome.records and outcome.reason:
+            print(f"nothing to discover: {outcome.reason}", file=sys.stderr)
             return 1
-        discovered = [
-            caps_mod.record_from_dict(item, scope="project")
-            for item in adapter.discover_capabilities()
-        ]
+        discovered = list(outcome)
+        if outcome.reason:
+            print(f"note: {outcome.reason}", file=sys.stderr)
         if args.write:
             merged = caps_mod.sync_discovered(root, discovered)
             print(f"wrote {len(merged)} capabilities to {paths.capabilities_index}")
         else:
             print(caps_mod.render_l0(discovered))
             print("\n(dry run; pass --write to update the project index)", file=sys.stderr)
+        return 0
+
+    if sub == "select":
+        from .selector import select as select_capabilities
+
+        registry = caps_mod.load_registry(root)
+        result = select_capabilities(args.task, registry.records, limit=args.limit)
+        print(result.to_text())
         return 0
 
     registry = caps_mod.load_registry(root)
@@ -393,14 +401,11 @@ def cmd_capabilities(args: argparse.Namespace) -> int:
     if sub == "verify":
         adapter = OpenCodeAdapter(root)
         discovered_ids: set[str] = set()
-        if adapter.detect() is not None:
-            for item in adapter.discover_capabilities():
-                try:
-                    discovered_ids.add(
-                        caps_mod.record_from_dict(item, scope="project").id
-                    )
-                except caps_mod.RegistryError:
-                    continue
+        outcome = adapter.discover_capabilities()
+        if outcome.reason:
+            print(f"note: {outcome.reason}", file=sys.stderr)
+        for record in outcome:
+            discovered_ids.add(record.id)
         registered_ids = {record.id for record in registry.records}
         new = sorted(discovered_ids - registered_ids)
         stale = sorted(registered_ids - discovered_ids)
@@ -583,6 +588,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_caps_verify = caps_sub.add_parser("verify", help="compare registry with discovery")
     p_caps_verify.set_defaults(func=cmd_capabilities)
+
+    p_caps_select = caps_sub.add_parser("select", help="recommend capabilities for a task")
+    p_caps_select.add_argument("task")
+    p_caps_select.add_argument("--limit", type=int, default=3)
+    p_caps_select.set_defaults(func=cmd_capabilities)
 
     p_caps_register = caps_sub.add_parser("register", help="manually register a capability")
     p_caps_register.add_argument("--id", required=True)

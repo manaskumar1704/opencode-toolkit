@@ -59,10 +59,7 @@ async def test_capability_registry_lists_discovered(server_root) -> None:
     (skill / "SKILL.md").write_text(
         "---\ndescription: Demo skill\n---\n", encoding="utf-8"
     )
-    discovered = [
-        capabilities.record_from_dict(item, scope="project")
-        for item in OpenCodeAdapter(server_root).discover_capabilities()
-    ]
+    discovered = list(OpenCodeAdapter(server_root).discover_capabilities())
     capabilities.sync_discovered(server_root, discovered)
 
     tools = await _tools()

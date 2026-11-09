@@ -138,7 +138,7 @@ OCTK is **not**:
 - [x] Core has no harness imports (boundary tests).
 - [x] MCP surface is 8 tools.
 - [x] Test suite is green.
-- [ ] Capability Selector implemented (ADR-007).
+- [x] Capability Selector implemented (ADR-007).
 - [ ] Benchmark suite covers all 8 task categories.
 
 ## 7. Compatibility

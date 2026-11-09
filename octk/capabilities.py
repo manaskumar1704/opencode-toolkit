@@ -79,6 +79,11 @@ class CapabilityRecord:
     verified_at: str | None = None
     source_path: str | None = None
 
+    @property
+    def available(self) -> bool:
+        """Derived availability: anything not explicitly disabled."""
+        return self.activation != "disabled"
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise back to the on-disk shape."""
         return {
@@ -402,6 +407,7 @@ def render_l1(record: CapabilityRecord) -> str:
         "scope": record.scope,
         "harness": list(record.harness),
         "activation": record.activation,
+        "available": record.available,
         "invocation": record.invocation,
         "permissions": record.permissions,
         "cost": record.cost,

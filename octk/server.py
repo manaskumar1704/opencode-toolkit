@@ -151,7 +151,7 @@ def equip_skill(skill_name: str) -> str:
 
 @mcp.tool()
 def check_spec_drift() -> str:
-    """AST spec-to-code drift scan (undocumented symbols/routes vs specs)."""
+    """Python-AST spec-to-code drift scan (*.py files only; not other languages)."""
     try:
         result = drift_mod.check_drift(get_root())
         _log("check_spec_drift", "counterfactual", result.raw_chars, result.pruned_chars)
@@ -221,7 +221,6 @@ async def equip_external_mcp(
         return f"octk error: {type(exc).__name__}: {exc}"
 
 
-@mcp.tool()
 async def browser_inspect(url: str, wait_ms: int = 1000) -> str:
     """Load a URL in headless Chromium and summarize errors/a11y/elements."""
     try:
@@ -230,6 +229,18 @@ async def browser_inspect(url: str, wait_ms: int = 1000) -> str:
         return result.text
     except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
+
+
+# Feature flag: Chromium is heavy and not every user needs it. Disable with
+# OCTK_BROWSER=0 to drop the tool (and its schema cost) from the surface.
+BROWSER_ENABLED = os.environ.get("OCTK_BROWSER", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+if BROWSER_ENABLED:
+    mcp.tool()(browser_inspect)
 
 
 def main() -> None:

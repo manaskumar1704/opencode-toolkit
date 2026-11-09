@@ -128,7 +128,7 @@ def test_discovery_includes_graphify_record(tmp_path: Path, monkeypatch) -> None
     (tmp_path / ".opencode").mkdir()
     (tmp_path / "opencode.json").write_text("{}", encoding="utf-8")
 
-    ids = {record["id"] for record in discover(tmp_path)}
+    ids = {record.id for record in discover(tmp_path)}
 
     assert "cli:graphify/graphify" in ids
 

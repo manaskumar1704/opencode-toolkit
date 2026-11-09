@@ -12,9 +12,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
 
-from ..capabilities import MAX_DESCRIPTION
+from ..capabilities import MAX_DESCRIPTION, RegistryError, record_from_dict
 from ..config import load_config
 from ..providers import graphify, ponytail
+from .base import DiscoveryResult
 
 HEAD_CHARS = 4096
 _SLUG_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -79,15 +80,28 @@ class OpenCodeAdapter:
             "commands_dir": (opencode_dir / "commands").is_dir(),
         }
 
-    def discover_capabilities(self) -> Iterable[dict[str, Any]]:
+    def discover_capabilities(self) -> DiscoveryResult:
+        if self.detect() is None:
+            return DiscoveryResult(
+                (), "no supported harness detected (no .opencode/ or opencode.json)"
+            )
         today = date.today().isoformat()
-        records: list[dict[str, Any]] = []
-        records.extend(self._skills(today))
-        records.extend(self._commands(today))
-        records.extend(self._mcp_servers(today))
-        records.extend(self._octk_native(today))
-        records.extend(self._providers(today))
-        return records
+        raw: list[dict[str, Any]] = []
+        raw.extend(self._skills(today))
+        raw.extend(self._commands(today))
+        raw.extend(self._mcp_servers(today))
+        raw.extend(self._octk_native(today))
+        raw.extend(self._providers(today))
+
+        records: list[Any] = []
+        skipped: list[str] = []
+        for item in raw:
+            try:
+                records.append(record_from_dict(item, scope="project"))
+            except RegistryError as exc:
+                skipped.append(str(exc))
+        reason = f"{len(skipped)} invalid record(s) skipped: {skipped[0]}" if skipped else None
+        return DiscoveryResult(tuple(records), reason)
 
     def install_hints(self) -> list[str]:
         hints: list[str] = []
@@ -131,7 +145,7 @@ class OpenCodeAdapter:
                         "command": None,
                         "schema_ref": _rel(self.root, skill_md),
                     },
-                    "permissions": {"side_effects": ["read_only"]},
+                    "permissions": {"side_effects": ["read_only"], "requires_approval": False},
                     "cost": None,
                     "provenance": "discovered",
                     "verified_at": today,
@@ -164,7 +178,7 @@ class OpenCodeAdapter:
                         "command": f"/{path.stem}",
                         "schema_ref": _rel(self.root, path),
                     },
-                    "permissions": {"side_effects": ["read_only"]},
+                    "permissions": {"side_effects": ["read_only"], "requires_approval": False},
                     "cost": None,
                     "provenance": "discovered",
                     "verified_at": today,
@@ -218,7 +232,7 @@ class OpenCodeAdapter:
                         "command": command,
                         "schema_ref": f"opencode.json#mcp.{key}",
                     },
-                    "permissions": {"side_effects": ["unknown"]},
+                    "permissions": {"side_effects": ["unknown"], "requires_approval": False},
                     "cost": None,
                     "provenance": "discovered",
                     "verified_at": today,
@@ -249,7 +263,7 @@ class OpenCodeAdapter:
                             "command": path.stem,
                             "schema_ref": _rel(self.root, path),
                         },
-                        "permissions": {"side_effects": ["read_only"]},
+                        "permissions": {"side_effects": ["read_only"], "requires_approval": False},
                         "cost": None,
                         "provenance": "octk_provided",
                         "verified_at": today,
@@ -276,7 +290,7 @@ class OpenCodeAdapter:
                             "command": path.stem,
                             "schema_ref": _rel(self.root, path),
                         },
-                        "permissions": {"side_effects": ["read_only"]},
+                        "permissions": {"side_effects": ["read_only"], "requires_approval": False},
                         "cost": None,
                         "provenance": "octk_provided",
                         "verified_at": today,
@@ -294,9 +308,6 @@ class OpenCodeAdapter:
         return records
 
 
-def discover(root: Path) -> list[dict[str, Any]]:
+def discover(root: Path) -> DiscoveryResult:
     """Discover capabilities for a root using every available adapter."""
-    adapter = OpenCodeAdapter(root)
-    if adapter.detect() is None:
-        return []
-    return list(adapter.discover_capabilities())
+    return OpenCodeAdapter(root).discover_capabilities()

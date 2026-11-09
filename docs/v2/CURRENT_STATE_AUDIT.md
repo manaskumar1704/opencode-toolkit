@@ -145,10 +145,10 @@ Build: setuptools ≥75. Python: **≥3.11**.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Capability Selector absent (ADR-007) | Medium | Registry lists but cannot recommend; documented as remaining work |
-| Discovery failure gives no reason (ADR-004) | Low | Returns empty list; agent sees "no capabilities" |
-| `browser_inspect` always exposed (ADR-005) | Low | Degrades at call time; schema cost paid regardless |
-| Adapter returns raw dicts (ADR-003) | Low | Validated one layer later; malformed records skipped |
+| Capability Selector | Resolved | `octk/selector.py` — heuristic, explainable ranking (ADR-007) |
+| Discovery failure gives no reason | Resolved | `DiscoveryResult.reason` (ADR-004) |
+| `browser_inspect` always exposed | Resolved | `OCTK_BROWSER=0` drops the tool (ADR-005) |
+| Adapter returns raw dicts | Resolved | Adapters emit validated `CapabilityRecord` (ADR-003) |
 | Benchmark suite incomplete (1 of 8 categories) | High for evaluation validity | No v2 performance claim may be made yet |
 | No external benchmark selected | Medium | Generalisation unproven |
 | MCP surface 8 > target 6 | Low | Accepted; schema cost measured at 2,499 chars |

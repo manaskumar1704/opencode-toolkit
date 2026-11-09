@@ -81,7 +81,8 @@ is a separate approval-gated decision.
 
 ## ADR-003 — Adapters return raw dicts; normalisation happens at the registry
 
-**Status:** Open
+**Status:** Accepted (resolved 2026-11-09)
+**Resolution:** `discover_capabilities()` now returns a `DiscoveryResult` of validated `CapabilityRecord` objects; normalisation happens inside the adapter.
 **Handoff:** B2, line 222 — "Adapter output is normalised into `CapabilityRecord` before reaching core"
 **Implementation:** `octk/adapters/base.py`, `octk/adapters/opencode.py`
 
@@ -108,7 +109,8 @@ document the validation boundary.
 
 ## ADR-004 — Discovery failure returns an empty list with no reason
 
-**Status:** Open
+**Status:** Accepted (resolved 2026-11-09)
+**Resolution:** `DiscoveryResult.reason` carries the failure or partial-failure reason; `octk capabilities discover` prints it.
 **Handoff:** B2, line 220 — "Discovery failure returns an empty set plus a reason"
 **Implementation:** `octk/adapters/opencode.py::discover`
 
@@ -133,7 +135,8 @@ config". Fix: return `(records, reason)` or attach the reason to
 
 ## ADR-005 — `browser_inspect` is not feature-flagged
 
-**Status:** Open
+**Status:** Accepted (resolved 2026-11-09)
+**Resolution:** `browser_inspect` registers only when `OCTK_BROWSER` is not `0/false/no/off`. Default remains on for backward compatibility; setting the flag drops the tool and its schema.
 **Handoff:** B4, line 305 — "Keep, feature-flagged"
 **Implementation:** `octk/server.py`
 
@@ -158,7 +161,8 @@ success.
 
 ## ADR-006 — `check_spec_drift` does not declare Python-only coverage
 
-**Status:** Open
+**Status:** Accepted (resolved 2026-11-09)
+**Resolution:** tool description now reads "Python-AST spec-to-code drift scan (*.py files only; not other languages)".
 **Handoff:** B4 line 306 and A4 line 137 — "Python-only must be stated in the tool description"
 **Implementation:** `octk/server.py::check_spec_drift`
 
@@ -181,7 +185,7 @@ result. Fix: one-line description change to "Python-only (`*.py`)".
 
 ## ADR-007 — Capability Selector is not implemented
 
-**Status:** Open (remaining work, not a regression)
+**Status:** Accepted (implemented 2026-11-09)
 **Handoff:** A3.3 and B1 — Selector determines relevance, prefers native, explains skips
 **Implementation:** absent
 
@@ -190,6 +194,13 @@ result. Fix: one-line description change to "Python-only (`*.py`)".
 The architecture diagram and A3.3 describe a selector that decides relevance
 and explains why a capability was selected or skipped. Only discovery and
 retrieval (L0/L1/L2) exist.
+
+### Resolution
+
+`octk/selector.py` implements a heuristic, explainable selector: token overlap
+over name/description/id, native-before-wrapper type priority, de-duplication by
+name, and a reason for every selection and skip. Exposed as
+`octk capabilities select "<task>"`.
 
 ### Why it happened
 
@@ -252,7 +263,7 @@ Flat core is harder to enforce structurally, so a boundary test
 
 ## ADR-010 — `available` and `permissions.requires_approval` are not emitted
 
-**Status:** Open (minor)
+**Status:** Accepted (resolved 2026-11-09)
 **Handoff:** B3 record example lines 255–258 and L0 payload line 285
 **Implementation:** `octk/adapters/opencode.py`
 
@@ -261,6 +272,12 @@ Flat core is harder to enforce structurally, so a boundary test
 The B3 example includes `permissions.requires_approval` and the L0 payload
 includes `available`. Discovery emits `permissions.side_effects` only, and
 `available` is not a stored field.
+
+### Resolution
+
+`CapabilityRecord.available` is now a derived property (`activation !=
+"disabled"`) and appears in the L1 payload. Discovery and provider records emit
+`requires_approval: false`.
 
 ### Why it happened
 
@@ -280,11 +297,11 @@ default and either store or document `available` as derived.
 |---|---|---|
 | 001 | L0 grouped names instead of full payload | Accepted |
 | 002 | 8 MCP tools, not ≤6 | Accepted |
-| 003 | Adapters return dicts, not CapabilityRecord | **Open** |
-| 004 | Discovery failure has no reason | **Open** |
-| 005 | `browser_inspect` not feature-flagged | **Open** |
-| 006 | `check_spec_drift` coverage undeclared | **Open** |
-| 007 | Capability Selector absent | **Open** (remaining work) |
+| 003 | Adapters return dicts, not CapabilityRecord | Accepted |
+| 004 | Discovery failure has no reason | Accepted |
+| 005 | `browser_inspect` not feature-flagged | Accepted |
+| 006 | `check_spec_drift` coverage undeclared | Accepted |
+| 007 | Capability Selector absent | Accepted |
 | 008 | Model CLI deprecated, not removed | Accepted |
 | 009 | Flat layout retained | Accepted |
-| 010 | `available` / `requires_approval` not emitted | **Open** (minor) |
+| 010 | `available` / `requires_approval` not emitted | Accepted |

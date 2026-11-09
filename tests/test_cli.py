@@ -244,3 +244,29 @@ def test_roadmap_set_cli(cli_root: Path, capsys) -> None:
     assert main(["roadmap", "set", "item", "current"]) == 0
     out = capsys.readouterr().out
     assert "[~]" in out or "item" in out
+
+
+def test_capabilities_select_cli(cli_root: Path, capsys) -> None:
+    assert (
+        main(
+            [
+                "capabilities",
+                "register",
+                "--id",
+                "skill:manual/review",
+                "--type",
+                "skill",
+                "--name",
+                "review",
+                "--description",
+                "Review code for bugs",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert main(["capabilities", "select", "review this code"]) == 0
+    out = capsys.readouterr().out
+    assert "Selected (1)" in out
+    assert "review [skill]" in out
