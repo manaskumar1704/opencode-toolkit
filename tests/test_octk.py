@@ -8,7 +8,7 @@ from pathlib import Path
 from octk import drift, sentinel
 from octk.cli import main as cli_main
 from octk.scaffold import init_repo
-from octk.templates import AGENT_DEFAULTS, AGENT_NAMES
+from octk.adapters.opencode_scaffold import AGENT_DEFAULTS, AGENT_NAMES
 
 
 def test_sentinel_upsert_preserves_user_text(tmp_path: Path) -> None:

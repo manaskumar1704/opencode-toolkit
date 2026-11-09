@@ -13,14 +13,14 @@ import sys
 from pathlib import Path
 
 from . import report as report_mod
+from .adapters import agent_names, agents_dir, mcp_config
 from .approvals import create_approval, list_approvals
 from .config import ToolkitPaths, load_config
 from .doctor import format_doctor, run_doctor
 from .handoff import generate_handoff
-from .metrics import MetricsStore
+from .metrics import MetricsStore, approx_tokens
 from .roadmap import parse_roadmap, set_status
-from .scaffold import init_repo, opencode_json
-from .templates import AGENT_NAMES
+from .scaffold import init_repo
 
 
 def get_root() -> Path:
@@ -147,7 +147,30 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_standing(args: argparse.Namespace) -> int:
     paths = ToolkitPaths(get_root())
-    entry = _metrics(paths).add_standing(args.label, args.tokens_in)
+    store = _metrics(paths)
+
+    if getattr(args, "standing_command", None) == "schema":
+        from . import bench as bench_mod
+
+        head = bench_mod.schema_overhead()
+        schema_tokens = approx_tokens(head["total_bytes"])
+        store.add_standing("octk-schema", schema_tokens)
+        recorded: dict[str, object] = {
+            "octk-schema": schema_tokens,
+            "tools": head["tools"],
+            "schema_bytes": head["total_bytes"],
+            "basis": "chars/4 proxy, not provider-measured",
+        }
+        agents = get_root() / args.agents_md
+        if agents.exists():
+            agents_tokens = approx_tokens(agents.stat().st_size)
+            store.add_standing("octk-agents-md", agents_tokens)
+            recorded["octk-agents-md"] = agents_tokens
+            recorded["agents_md_bytes"] = agents.stat().st_size
+        print(json.dumps(recorded, indent=2))
+        return 0
+
+    entry = store.add_standing(args.label, args.tokens_in)
     print(f"standing recorded: {entry['label']} = {entry['tokens_in']} input tokens")
     return 0
 
@@ -173,8 +196,8 @@ def cmd_handoff(args: argparse.Namespace) -> int:
 
 
 def mcp_config_json() -> dict:
-    """OpenCode V2 snippet: mcp.servers + permissions rule array."""
-    return opencode_json()
+    """Harness MCP config snippet: mcp.servers + permissions rule array."""
+    return mcp_config()
 
 
 def cmd_mcp_config(_args: argparse.Namespace) -> int:
@@ -182,12 +205,12 @@ def cmd_mcp_config(_args: argparse.Namespace) -> int:
     print(
         "\n# notes\n"
         "# - these rules stop a drifting agent, not a determined one (the agent still has shell access)\n"
-        "# - if OpenCode launches the server from elsewhere, add \"environment\": {\"OCTK_ROOT\": \"<abs project path>\"}"
+        "# - if the harness launches the server from elsewhere, add \"environment\": {\"OCTK_ROOT\": \"<abs project path>\"}"
     )
     return 0
 
 
-AGENTS_DIR = ".opencode/agents"
+AGENTS_DIR = agents_dir
 EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 
 
@@ -211,9 +234,9 @@ def _frontmatter_field(fm: str, key: str) -> str:
 
 def _check_agent(name: str) -> int | None:
     """Return an exit code on an invalid agent name, else None."""
-    if name in AGENT_NAMES:
+    if name in agent_names:
         return None
-    print(f"unknown agent: {name!r} (choose from {', '.join(AGENT_NAMES)})", file=sys.stderr)
+    print(f"unknown agent: {name!r} (choose from {', '.join(agent_names)})", file=sys.stderr)
     return 1
 
 
@@ -228,11 +251,22 @@ def _load_agent_file(root: Path, name: str) -> tuple[Path, str, str] | None:
     return path, fm, body
 
 
+DEPRECATION_NOTICE = (
+    "octk: warning: model/effort commands belong to the harness, not OCTK. "
+    "They will be removed in a future release; use your harness configuration."
+)
+
+
+def _warn_deprecated() -> None:
+    print(DEPRECATION_NOTICE, file=sys.stderr)
+
+
 def cmd_models(_args: argparse.Namespace) -> int:
+    _warn_deprecated()
     root = get_root()
     header = f"{'AGENT':<12} {'MODE':<9} {'MODEL':<38} EFFORT"
     print(header)
-    for name in AGENT_NAMES:
+    for name in agent_names:
         path = _agent_path(root, name)
         if not path.exists():
             print(f"{name:<12} {'-':<9} {'-':<38} -")
@@ -246,6 +280,7 @@ def cmd_models(_args: argparse.Namespace) -> int:
 
 
 def cmd_set_model(args: argparse.Namespace) -> int:
+    _warn_deprecated()
     code = _check_agent(args.agent_name)
     if code is not None:
         return code
@@ -263,6 +298,7 @@ def cmd_set_model(args: argparse.Namespace) -> int:
 
 
 def cmd_set_effort(args: argparse.Namespace) -> int:
+    _warn_deprecated()
     code = _check_agent(args.agent_name)
     if code is not None:
         return code
@@ -314,7 +350,114 @@ def cmd_bench_tools(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_capabilities(args: argparse.Namespace) -> int:
+    """Inspect, discover, verify, or manually register capabilities."""
+    from .adapters import OpenCodeAdapter
+    from . import capabilities as caps_mod
+
+    root = get_root()
+    sub = args.capabilities_command
+    paths = ToolkitPaths(root)
+
+    if sub == "discover":
+        adapter = OpenCodeAdapter(root)
+        if adapter.detect() is None:
+            print("no supported harness detected; nothing to discover", file=sys.stderr)
+            return 1
+        discovered = [
+            caps_mod.record_from_dict(item, scope="project")
+            for item in adapter.discover_capabilities()
+        ]
+        if args.write:
+            merged = caps_mod.sync_discovered(root, discovered)
+            print(f"wrote {len(merged)} capabilities to {paths.capabilities_index}")
+        else:
+            print(caps_mod.render_l0(discovered))
+            print("\n(dry run; pass --write to update the project index)", file=sys.stderr)
+        return 0
+
+    registry = caps_mod.load_registry(root)
+
+    if sub == "list":
+        print(caps_mod.render(registry, level=args.level, query=args.query))
+        return 0
+
+    if sub == "show":
+        text = caps_mod.render(
+            registry, level=args.level, capability_id=args.capability_id
+        )
+        print(text)
+        return 1 if text.startswith("octk error:") else 0
+
+    if sub == "verify":
+        adapter = OpenCodeAdapter(root)
+        discovered_ids: set[str] = set()
+        if adapter.detect() is not None:
+            for item in adapter.discover_capabilities():
+                try:
+                    discovered_ids.add(
+                        caps_mod.record_from_dict(item, scope="project").id
+                    )
+                except caps_mod.RegistryError:
+                    continue
+        registered_ids = {record.id for record in registry.records}
+        new = sorted(discovered_ids - registered_ids)
+        stale = sorted(registered_ids - discovered_ids)
+        print(f"registered: {len(registered_ids)}  discovered: {len(discovered_ids)}")
+        if new:
+            print("new (discovered, not registered):")
+            for item in new:
+                print(f"  {item}")
+        if stale:
+            print("stale (registered, no longer discovered):")
+            for item in stale:
+                print(f"  {item}")
+        if not new and not stale:
+            print("registry matches discovery")
+        return 0 if not stale else 1
+
+    if sub == "register":
+        data: dict[str, object] = {
+            "id": args.id,
+            "type": args.type,
+            "name": args.name,
+            "description": args.description,
+            "provider": args.provider,
+        }
+        if args.source_path:
+            data["source_path"] = args.source_path
+        record = caps_mod.register(root, data)
+        print(f"registered {record.id} -> {paths.capabilities_index}")
+        return 0
+
+    print(f"unknown capabilities command: {sub}", file=sys.stderr)
+    return 2
+
+
+def cmd_providers(args: argparse.Namespace) -> int:
+    """Report external provider status. Detection only; runs nothing."""
+    from .providers import graphify, ponytail
+
+    root = get_root()
+    cfg = load_config(root)
+    statuses = [graphify.detect(root, cfg), ponytail.detect(root, cfg)]
+
+    if args.json:
+        print(json.dumps([status.to_dict() for status in statuses], indent=2))
+        return 0
+
+    for status in statuses:
+        state = f", state={status.state}" if status.state else ""
+        version = f", version={status.version}" if status.version else ""
+        available = "available" if status.available else "absent"
+        print(f"{status.id}: {available}{state}{version}")
+        print(f"  {status.detail}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
+    from .capabilities import CAPABILITY_TYPES
+
     parser = argparse.ArgumentParser(prog="octk")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -373,7 +516,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.add_argument("--tokens-in", type=int, required=True)
     p_add.set_defaults(func=cmd_standing)
 
-    p_mcp = sub.add_parser("mcp-config", help="print the opencode.json snippet (V2 syntax)")
+    p_schema = standing_sub.add_parser(
+        "schema", help="record the MCP tool-schema and AGENTS.md standing cost"
+    )
+    p_schema.add_argument("--agents-md", default="AGENTS.md")
+    p_schema.set_defaults(func=cmd_standing)
+
+    p_mcp = sub.add_parser("mcp-config", help="print the harness MCP config snippet")
     p_mcp.set_defaults(func=cmd_mcp_config)
 
     p_models = sub.add_parser("models", help="list the 4 octk agents and their model/effort")
@@ -388,6 +537,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_set_effort.add_argument("agent_name")
     p_set_effort.add_argument("level", choices=sorted(EFFORT_LEVELS))
     p_set_effort.set_defaults(func=cmd_set_effort)
+
+    p_caps = sub.add_parser("capabilities", help="inspect the capability registry")
+    caps_sub = p_caps.add_subparsers(dest="capabilities_command", required=True)
+
+    p_caps_list = caps_sub.add_parser("list", help="list capabilities (L0/L1/L2)")
+    p_caps_list.add_argument("--level", default="L0", choices=["L0", "L1", "L2"])
+    p_caps_list.add_argument("--query", default="")
+    p_caps_list.set_defaults(func=cmd_capabilities)
+
+    p_caps_show = caps_sub.add_parser("show", help="show one capability")
+    p_caps_show.add_argument("capability_id")
+    p_caps_show.add_argument("--level", default="L1", choices=["L0", "L1", "L2"])
+    p_caps_show.set_defaults(func=cmd_capabilities)
+
+    p_caps_discover = caps_sub.add_parser("discover", help="dry-run harness discovery")
+    p_caps_discover.add_argument("--write", action="store_true")
+    p_caps_discover.set_defaults(func=cmd_capabilities)
+
+    p_caps_verify = caps_sub.add_parser("verify", help="compare registry with discovery")
+    p_caps_verify.set_defaults(func=cmd_capabilities)
+
+    p_caps_register = caps_sub.add_parser("register", help="manually register a capability")
+    p_caps_register.add_argument("--id", required=True)
+    p_caps_register.add_argument("--type", required=True, choices=sorted(CAPABILITY_TYPES))
+    p_caps_register.add_argument("--name", required=True)
+    p_caps_register.add_argument("--description", required=True)
+    p_caps_register.add_argument("--provider", default="unknown")
+    p_caps_register.add_argument("--source-path", dest="source_path", default=None)
+    p_caps_register.set_defaults(func=cmd_capabilities)
+
+    p_providers = sub.add_parser("providers", help="report external provider status")
+    p_providers.add_argument("--json", action="store_true")
+    p_providers.set_defaults(func=cmd_providers)
 
     p_bench = sub.add_parser("bench", help="tool-level benchmarks")
     bench_sub = p_bench.add_subparsers(dest="bench_command", required=True)
