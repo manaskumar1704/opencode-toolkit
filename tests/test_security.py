@@ -22,6 +22,9 @@ def _load_scanner():
     spec = importlib.util.spec_from_file_location("octk_security_scan", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
+    # dataclasses resolves annotations through sys.modules; the module must be
+    # registered before execution or Python 3.14 raises AttributeError.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
