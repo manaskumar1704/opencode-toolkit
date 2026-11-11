@@ -15,6 +15,7 @@ from benchmarks.driver import (
     AgentResult,
     RunOutcome,
     RunSpec,
+    StageReport,
     apply_arm,
     arm_flags,
     build_schedule,
@@ -24,8 +25,10 @@ from benchmarks.driver import (
     execute_run,
     extract_token_totals,
     extract_token_usage,
+    render_stage_report,
     run_all_stages,
     run_stage,
+    select_tasks,
     stage_arms,
 )
 from benchmarks.manifest import RunManifest
@@ -591,3 +594,73 @@ def test_leaked_run_keeps_the_oracle_result_but_is_invalid(tmp_path: Path) -> No
     assert outcome.passed is True
     assert outcome.manifest.correctness["valid"] is False
     assert outcome.manifest.correctness["oracle_leaked"]
+
+
+# -- task filter, labels, per-task effects ---------------------------------
+
+
+def test_select_tasks_filters_to_named_tasks() -> None:
+    selected = select_tasks("spec_selection")
+    assert selected is not None
+    assert [task["name"] for task in selected] == ["spec_selection"]
+
+
+def test_select_tasks_empty_means_whole_suite() -> None:
+    assert select_tasks("") is None
+    assert select_tasks(" , ") is None
+
+
+def test_select_tasks_rejects_an_unknown_name() -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        select_tasks("spec_selection,typo_task")
+    assert "typo_task" in str(excinfo.value)
+    assert "spec_selection" in str(excinfo.value)
+
+
+def test_run_stage_label_suffixes_the_report(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    report = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=_fixing_executor({"A": 500, "E": 300}),
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+        label="-core",
+    )
+
+    assert report.label == "-core"
+    assert (results / "stage-1-core.json").is_file()
+    assert (results / "stage-1-core.md").is_file()
+    assert not (results / "stage-1.json").exists()
+
+
+def test_report_renders_per_task_effects() -> None:
+    gate = evaluate_gate(1, _pairs(n=5, e_tokens=700))
+    report = StageReport(
+        stage=1,
+        outcomes=_pairs(n=5, e_tokens=700),
+        gate=gate,
+        cost={"status": "MEASURED"},
+        results_dir="/tmp/x",
+    )
+
+    rendered = render_stage_report(report)
+
+    assert "## Per-task effect" in rendered
+    # Positive reduction means fewer tokens than the baseline.
+    assert "| t | tokens | 5 | +30.0%" in rendered
+    assert "| t | duration | 5 | +10.0%" in rendered
+    assert "improvement" in rendered
+
+
+def test_per_task_effect_stays_empty_when_underpowered() -> None:
+    gate = evaluate_gate(1, _pairs(n=2))
+    assert gate.per_task_effect["t"]["E"]["tokens"] is None

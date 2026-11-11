@@ -675,6 +675,7 @@ class GateDecision:
     reason: str
     per_task: dict[str, dict[str, float]]
     effect: dict[str, Any] = field(default_factory=dict)
+    per_task_effect: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -769,6 +770,34 @@ def _describe(effect: dict[str, Any] | None) -> str:
     )
 
 
+def _per_task_effects(
+    outcomes: Sequence[RunOutcome],
+    arms: Sequence[str],
+    seed: int,
+) -> dict[str, Any]:
+    """Per-task paired effects, so an aggregate cannot hide the story.
+
+    Each task is resampled with its own deterministic seed; sharing one stream
+    across tasks of different sizes would correlate the intervals.
+    """
+    tasks = sorted({o.spec.task for o in outcomes})
+    result: dict[str, Any] = {}
+    for index, task in enumerate(tasks):
+        subset = [o for o in outcomes if o.spec.task == task]
+        row: dict[str, Any] = {}
+        for arm in arms:
+            row[arm] = {
+                "tokens": _paired_effect(
+                    subset, BASELINE_ARM, arm, "tokens_input", seed + index + 1
+                ),
+                "duration": _paired_effect(
+                    subset, BASELINE_ARM, arm, "duration_s", seed + index + 1
+                ),
+            }
+        result[task] = row
+    return result
+
+
 def evaluate_gate(
     stage: int,
     outcomes: Sequence[RunOutcome],
@@ -843,6 +872,8 @@ def evaluate_gate(
                 parts.append("duration " + _describe(duration))
             passing.append(f"arm {arm}: " + "; ".join(parts))
 
+    per_task_effect = _per_task_effects(outcomes, signal_arms, seed)
+
     if stage == 1:
         if not passing:
             detail = "; ".join(
@@ -857,6 +888,7 @@ def evaluate_gate(
                 "no measurable efficiency signal in Stage 1: " + detail,
                 per_task,
                 effect,
+                per_task_effect,
             )
         return GateDecision(
             1,
@@ -865,6 +897,7 @@ def evaluate_gate(
             "correctness non-negative; " + "; ".join(passing),
             per_task,
             effect,
+            per_task_effect,
         )
 
     if not passing:
@@ -875,6 +908,7 @@ def evaluate_gate(
             "external tools show no independent effect; interactions not worth testing",
             per_task,
             effect,
+            per_task_effect,
         )
     return GateDecision(
         2,
@@ -883,6 +917,7 @@ def evaluate_gate(
         "external tools show an independent effect; " + "; ".join(passing),
         per_task,
         effect,
+        per_task_effect,
     )
 
 
@@ -937,6 +972,7 @@ class StageReport:
     gate: GateDecision
     cost: dict[str, Any]
     results_dir: str
+    label: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -951,6 +987,7 @@ class StageReport:
             "gate": self.gate.to_dict(),
             "cost": self.cost,
             "results_dir": self.results_dir,
+            "label": self.label,
             "outcomes": [o.to_dict() for o in self.outcomes],
         }
 
@@ -967,9 +1004,14 @@ def run_stage(
     tasks: Sequence[dict[str, Any]] | None = None,
     timeout_s: int = DEFAULT_TIMEOUT_S,
     preflight: bool = True,
+    label: str = "",
     progress: Callable[[RunOutcome, int, int], None] | None = None,
 ) -> StageReport:
-    """Run one stage: preflight, schedule, execute, gate, persist."""
+    """Run one stage: preflight, schedule, execute, gate, persist.
+
+    ``label`` suffixes the persisted report names, so a stage can be run in
+    several blocks (a powered task, then the rest) without clobbering.
+    """
     results = results_dir or RESULTS_DIR
     if preflight:
         outcome = run_preflight(repo)
@@ -1007,13 +1049,15 @@ def run_stage(
         gate=gate,
         cost=cost,
         results_dir=str(results),
+        label=label,
     )
 
     results.mkdir(parents=True, exist_ok=True)
-    (results / f"stage-{stage}.json").write_text(
+    stem = f"stage-{stage}{label}"
+    (results / f"{stem}.json").write_text(
         json.dumps(report.to_dict(), indent=2, default=str), encoding="utf-8"
     )
-    (results / f"stage-{stage}.md").write_text(render_stage_report(report), encoding="utf-8")
+    (results / f"{stem}.md").write_text(render_stage_report(report), encoding="utf-8")
     return report
 
 
@@ -1053,9 +1097,29 @@ def run_all_stages(
     return reports
 
 
+def _verdict(effect: dict[str, Any]) -> str:
+    if effect["improvement"]:
+        return "improvement"
+    if effect["regression"]:
+        return "regression"
+    return "noise"
+
+
+def _effect_row(prefix: str, effect: dict[str, Any] | None) -> str:
+    if not effect:
+        return f"| {prefix} | - | insufficient data | - | noise |"
+    return (
+        f"| {prefix} | {effect['n']} | "
+        f"{effect['reduction'] * 100:+.1f}% | "
+        f"{effect['reduction_ci_low'] * 100:+.1f}%.."
+        f"{effect['reduction_ci_high'] * 100:+.1f}% | {_verdict(effect)} |"
+    )
+
+
 def render_stage_report(report: StageReport) -> str:
+    suffix = f" — {report.label}" if report.label else ""
     lines = [
-        f"# Benchmark Stage {report.stage}",
+        f"# Benchmark Stage {report.stage}{suffix}",
         "",
         (
             f"Runs: {len(report.outcomes)}  "
@@ -1082,26 +1146,32 @@ def render_stage_report(report: StageReport) -> str:
             "",
             "## Effect (paired by task and rep)",
             "",
-            "| arm | metric | n | change | 95% CI | verdict |",
+            "Reduction is relative to arm A. Positive means the arm used fewer",
+            "tokens or less time; negative means it used more.",
+            "",
+            "| arm | metric | n | reduction | 95% CI | verdict |",
             "|---|---|---:|---:|---|---|",
         ]
         for arm in sorted(report.gate.effect):
             for metric in ("tokens", "duration"):
                 effect = report.gate.effect[arm].get(metric)
-                if not effect:
-                    lines.append(f"| {arm} | {metric} | - | insufficient data | - | noise |")
-                    continue
-                verdict = (
-                    "improvement"
-                    if effect["improvement"]
-                    else ("regression" if effect["regression"] else "noise")
-                )
-                lines.append(
-                    f"| {arm} | {metric} | {effect['n']} | "
-                    f"{effect['reduction'] * 100:+.1f}% | "
-                    f"{effect['reduction_ci_low'] * 100:+.1f}%.."
-                    f"{effect['reduction_ci_high'] * 100:+.1f}% | {verdict} |"
-                )
+                lines.append(_effect_row(f"{arm} | {metric}", effect))
+    if report.gate.per_task_effect:
+        lines += [
+            "",
+            "## Per-task effect (paired by task and rep)",
+            "",
+            "An aggregate can hide a strong effect on one task. Every task is",
+            "reported with its own confidence interval.",
+            "",
+            "| task | metric | n | reduction | 95% CI | verdict |",
+            "|---|---|---:|---:|---|---|",
+        ]
+        for task in sorted(report.gate.per_task_effect):
+            for arm in sorted(report.gate.per_task_effect[task]):
+                for metric in ("tokens", "duration"):
+                    effect = report.gate.per_task_effect[task][arm].get(metric)
+                    lines.append(_effect_row(f"{task} | {metric}", effect))
     lines += ["", "## Cost", "", f"- Status: **{report.cost.get('status')}**"]
     for key in ("mean_tokens_input", "mean_duration_s"):
         if key in report.cost:
@@ -1140,6 +1210,25 @@ def dry_run(
 # -- command line ----------------------------------------------------------
 
 
+def select_tasks(spec: str) -> list[dict[str, Any]] | None:
+    """Filter the suite by name; ``""`` means the whole suite.
+
+    Block runs need this: a single task can be powered to 20 reps without
+    touching the other fixtures. Unknown names are an error, never silent.
+    """
+    wanted = [name.strip() for name in spec.split(",") if name.strip()]
+    if not wanted:
+        return None
+    available = {str(task["name"]): task for task in list_tasks()}
+    unknown = [name for name in wanted if name not in available]
+    if unknown:
+        raise SystemExit(
+            f"unknown task(s): {', '.join(unknown)}\n"
+            f"available: {', '.join(sorted(available))}"
+        )
+    return [available[name] for name in wanted]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """``python -m benchmarks.driver`` — dev-only, never shipped in the wheel."""
     import argparse
@@ -1152,6 +1241,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--reps", type=int, default=DEFAULT_REPS)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--results-dir", default=None)
+    parser.add_argument(
+        "--tasks",
+        default="",
+        help="comma-separated task names; default is the whole suite",
+    )
+    parser.add_argument(
+        "--label",
+        default="",
+        help="suffix for the persisted report, e.g. -spec writes stage-1-spec.md",
+    )
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S)
     parser.add_argument("--dry-run", action="store_true", help="print the queue only")
     parser.add_argument(
@@ -1163,11 +1262,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     repo = Path(__file__).resolve().parents[1]
     results = Path(args.results_dir) if args.results_dir else None
+    selected = select_tasks(args.tasks)
 
     if args.dry_run:
         stages = [1, 2, 3] if args.stage == "all" else [int(args.stage)]
         for stage in stages:
-            schedule = dry_run(stage, reps=args.reps, seed=args.seed)
+            schedule = dry_run(
+                stage, reps=args.reps, seed=args.seed, tasks=selected
+            )
             print(f"# Stage {stage} — {len(schedule)} runs")
             print(render_schedule(schedule))
             print()
@@ -1188,6 +1290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.seed,
             results_dir=results,
             timeout_s=args.timeout,
+            tasks=selected,
             progress=_print_progress,
         )
     else:
@@ -1199,6 +1302,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 seed=args.seed,
                 results_dir=results,
                 timeout_s=args.timeout,
+                tasks=selected,
+                label=args.label,
                 progress=_print_progress,
             )
         ]

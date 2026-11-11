@@ -27,3 +27,6 @@ benchmarks/results/stage-*.json
 benchmarks/results/stage-*.md
 benchmarks/results/smoke*/
 benchmarks/results/spec-selection/
+
+# archived benchmark evidence (local only)
+benchmarks/results/archive/
