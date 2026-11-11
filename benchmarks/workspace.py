@@ -40,9 +40,9 @@ IGNORE = shutil.ignore_patterns(
 CLONE_RE = re.compile(r"git\s+clone\s+\S*opencode-toolkit", re.IGNORECASE)
 ORACLE_DEF_RE = re.compile(r"\bdef (test_\w+)")
 
-# Fragments that only appear if the agent reached an oracle or a leftover
-# pytest fixture directory. The visible task files do not contain them.
-LEAK_FRAGMENTS = ("pytest-of-", "oracle/acceptance.py", "/oracle/")
+# Fragments that only appear if the agent reached a leftover pytest fixture
+# directory. Documentation mentions oracle paths, so those are not markers.
+LEAK_FRAGMENTS = ("pytest-of-",)
 
 
 def create_workspace(

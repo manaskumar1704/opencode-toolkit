@@ -20,3 +20,9 @@ benchmarks/results/*_octk.json
 benchmarks/results/*_bare.json
 
 reports/test-results/
+# generated benchmark evidence (summaries live in docs/v2)
+benchmarks/results/manifests/
+benchmarks/results/transcripts/
+benchmarks/results/stage-*.json
+benchmarks/results/stage-*.md
+benchmarks/results/smoke*/

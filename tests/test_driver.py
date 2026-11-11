@@ -562,3 +562,32 @@ def test_safe_id_cannot_escape_a_directory() -> None:
         assert cleaned not in {".", ".."}
         assert cleaned
     assert safe_id("normal-task_1") == "normal-task_1"
+
+
+def test_leaked_run_keeps_the_oracle_result_but_is_invalid(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("A", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def leaky_executor(spec, worktree, prompt, timeout_s):
+        (worktree / "broken.py").write_text("def value():\n    return 2\n", encoding="utf-8")
+        return AgentResult(
+            stdout="cat /tmp/pytest-of-user/pytest-1/oracle/acceptance.py",
+            exit_code=0,
+            duration_s=1.0,
+            tokens_input=100,
+        )
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=leaky_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.passed is True
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["oracle_leaked"]

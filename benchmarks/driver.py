@@ -594,8 +594,9 @@ def execute_run(
             visible_text,
         )
         valid = not leaks
-        if leaks:
-            passed = False
+        # Validity is a separate channel: never overwrite the oracle result.
+        # A leaked run is excluded from aggregates, but its correctness is
+        # still recorded honestly.
         providers = _detect_providers(worktree)
 
         manifest = RunManifest(
@@ -720,8 +721,12 @@ def _paired_effect(
     for (task, rep, arm), outcome in index.items():
         if arm != candidate:
             continue
+        if outcome.manifest.correctness.get("valid") is False:
+            continue
         base = index.get((task, rep, baseline))
         if base is None:
+            continue
+        if base.manifest.correctness.get("valid") is False:
             continue
         a = getattr(base.manifest, field_name)
         b = getattr(outcome.manifest, field_name)
@@ -748,7 +753,9 @@ def _paired_effect(
         "reduction_ci_high": reduction_high,
         "ci_low": low,
         "ci_high": high,
-        "significant": high < 0,
+        "improvement": high < 0,
+        "regression": low > 0,
+        "significant": high < 0 or low > 0,
     }
 
 
@@ -820,12 +827,12 @@ def evaluate_gate(
         effect[arm] = {"tokens": tokens, "duration": duration}
         token_signal = bool(
             tokens
-            and tokens["significant"]
+            and tokens["improvement"]
             and tokens["reduction"] >= MIN_TOKEN_REDUCTION
         )
         duration_signal = bool(
             duration
-            and duration["significant"]
+            and duration["improvement"]
             and duration["reduction"] >= MIN_DURATION_REDUCTION
         )
         if token_signal or duration_signal:
@@ -1075,21 +1082,25 @@ def render_stage_report(report: StageReport) -> str:
             "",
             "## Effect (paired by task and rep)",
             "",
-            "| arm | metric | n | change | 95% CI | significant |",
+            "| arm | metric | n | change | 95% CI | verdict |",
             "|---|---|---:|---:|---|---|",
         ]
         for arm in sorted(report.gate.effect):
             for metric in ("tokens", "duration"):
                 effect = report.gate.effect[arm].get(metric)
                 if not effect:
-                    lines.append(f"| {arm} | {metric} | - | insufficient data | - | no |")
+                    lines.append(f"| {arm} | {metric} | - | insufficient data | - | noise |")
                     continue
+                verdict = (
+                    "improvement"
+                    if effect["improvement"]
+                    else ("regression" if effect["regression"] else "noise")
+                )
                 lines.append(
                     f"| {arm} | {metric} | {effect['n']} | "
                     f"{effect['reduction'] * 100:+.1f}% | "
                     f"{effect['reduction_ci_low'] * 100:+.1f}%.."
-                    f"{effect['reduction_ci_high'] * 100:+.1f}% | "
-                    f"{'yes' if effect['significant'] else 'no'} |"
+                    f"{effect['reduction_ci_high'] * 100:+.1f}% | {verdict} |"
                 )
     lines += ["", "## Cost", "", f"- Status: **{report.cost.get('status')}**"]
     for key in ("mean_tokens_input", "mean_duration_s"):

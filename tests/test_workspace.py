@@ -111,4 +111,3 @@ def test_oracle_leaks_detects_pytest_artifacts() -> None:
         "cat /tmp/pytest-of-user/pytest-1/test/oracle/acceptance.py", ""
     )
     assert any("pytest-of-" in leak for leak in leaks)
-    assert any("oracle/acceptance.py" in leak for leak in leaks)
