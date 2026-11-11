@@ -149,9 +149,14 @@ def render_agent_md(name: str) -> str:
 
 
 def opencode_json() -> dict[str, Any]:
-    """OpenCode V2 config: mcp.servers + permissions rule array."""
+    """OpenCode V2 config: mcp.servers + permissions rule array.
+
+    The command is the bare ``octk-mcp`` name, resolved through PATH, so the
+    same committed config works on Linux, WSL, and Windows. An absolute path
+    (especially a ``C:\\...`` one) is machine-specific and breaks elsewhere.
+    """
     exe = shutil.which("octk-mcp")
-    command = [exe] if exe else [sys.executable, "-m", "octk.server"]
+    command = ["octk-mcp"] if exe else [sys.executable, "-m", "octk.server"]
     return {
         "mcp": {
             "servers": {
