@@ -146,7 +146,8 @@ the durable record.
       exclusion, `--standalone` server, leak detection (S-12/S-13).
 - [x] Execute Stage 1 (80 runs): 80/80 correct, **no efficiency signal**;
       E +21.3% tokens, 49.8% slower. See `BENCHMARK_RESULTS.md`.
-- [ ] Add a large-context task and re-run Stage 1.
+- [x] Add a large-context task (`spec_selection`, 20 specs). Pilot: 5/5
+      both arms; −17.4% tokens (CI crosses zero). Underpowered.
 - [ ] Stage 2 blocked until a real effect exists.
 
 ### R-3 External benchmark ✅ (selected)

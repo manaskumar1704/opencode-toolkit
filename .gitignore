@@ -26,3 +26,4 @@ benchmarks/results/transcripts/
 benchmarks/results/stage-*.json
 benchmarks/results/stage-*.md
 benchmarks/results/smoke*/
+benchmarks/results/spec-selection/

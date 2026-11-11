@@ -148,6 +148,13 @@ effect. Result: **no measurable efficiency signal → Stage 2 blocked.**
 | simple_bug | 5,110 | 3,805 | **−25.5%** |
 | test_diagnosis | 22,214 | 24,824 | +11.7% |
 
+### Large-context pilot
+
+A ninth task (`spec_selection`, 20 service specs) was added after Stage 1:
+**5/5 correct in both arms**, with E at **−17.4% tokens** and **−73% duration**
+on the point estimate — but the 95% CI crosses zero at n=5. Promising, not
+evidence yet.
+
 ### What we learned
 
 | Layer | Finding |

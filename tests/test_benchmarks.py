@@ -280,6 +280,7 @@ EXPECTED_CATEGORIES = {
     "browser issue",
     "architecture drift",
     "capability overlap",
+    "large-context selection",
 }
 
 
@@ -287,7 +288,7 @@ def test_all_eight_categories_present() -> None:
     from benchmarks.runner import list_tasks
 
     tasks = list_tasks()
-    assert len(tasks) == 8
+    assert len(tasks) == 9
     assert {task["category"] for task in tasks} == EXPECTED_CATEGORIES
 
 

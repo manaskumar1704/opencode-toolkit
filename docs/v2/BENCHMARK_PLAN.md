@@ -86,6 +86,7 @@ estimate is published before then.
 | 6 | Browser issue | `browser_issue` | implemented |
 | 7 | Architecture drift | `architecture_drift` | implemented |
 | 8 | Capability overlap | `capability_overlap` | implemented |
+| 9 | Large-context selection | `spec_selection` | implemented (pilot) |
 
 Each fixture: `task.json`, `setup.patch`, hidden `oracle/acceptance.py`.
 

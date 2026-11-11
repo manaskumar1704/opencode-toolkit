@@ -1,0 +1,11 @@
+{
+  "name": "spec_selection",
+  "category": "large-context selection",
+  "prompt": "The payments service's deployment region is defined in exactly one file under `.toolkit/specs/`. Find it and write the region (for example `eu-west-2`) to `ANSWER.md`, one line, nothing else.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "ANSWER.md"
+  ]
+}

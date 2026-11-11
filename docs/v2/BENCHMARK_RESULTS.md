@@ -92,7 +92,25 @@ disproven; it is untested at the scale where it matters.
 - That OCTK reduces tokens on small tasks. It does not.
 - That the pantry helps on a large repository. That case is not in the suite.
 
-## 7. Next
+## 7. Large-context pilot (`spec_selection`)
+
+A ninth task was added after Stage 1: 20 service specs, one of which is the
+payments service. The agent must find the right spec and write its region.
+
+| Metric | A | E |
+|---|---:|---:|
+| Correctness | 5/5 | 5/5 |
+| Median tokens | 9,233 | 8,419 (**−8.8%**) |
+| Median duration | 9.6s | 8.6s |
+
+Paired effect: **−17.4% tokens** (95% CI −18.6%..+62.3%), **−73.0% duration**
+(95% CI −9.8%..+229%). Both intervals cross zero at n=5.
+
+The point estimate is the first positive one for the pantry, but one arm-A run
+took 152s and 18,624 tokens (searching), which dominates the mean. The task is
+promising and underpowered, not evidence yet.
+
+## 8. Next
 
 1. Add a large-context task: ~20 specs/skills that a naive baseline must load.
 2. Consider a minimal OCTK surface (`glance` + `equip` only) to separate the
