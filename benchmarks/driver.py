@@ -229,6 +229,8 @@ class AgentResult:
     duration_s: float = 0.0
     tokens_input: int | None = None
     tokens_output: int | None = None
+    tokens_reasoning: int | None = None
+    tokens_cached: int | None = None
     provider_errors: list[str] = field(default_factory=list)
     rate_limit_log: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
@@ -238,24 +240,30 @@ class AgentResult:
 Executor = Callable[[RunSpec, Path, str, int], AgentResult]
 
 
-def _walk(node: Any) -> Iterable[Any]:
-    yield node
-    if isinstance(node, dict):
-        for value in node.values():
-            yield from _walk(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from _walk(value)
+@dataclass(frozen=True)
+class TokenTotals:
+    """Run-level token usage summed from OpenCode ``step_finish`` events."""
+
+    input: int | None = None
+    output: int | None = None
+    reasoning: int | None = None
+    cache_read: int | None = None
+
+    @property
+    def known(self) -> bool:
+        return self.input is not None
 
 
-def extract_token_usage(text: str) -> tuple[int | None, int | None]:
-    """Return (input, output) tokens from the last OpenCode JSON event.
+def extract_token_totals(text: str) -> TokenTotals:
+    """Sum per-step usage from an OpenCode ``--format json`` stream.
 
-    OpenCode's JSON format is not a stable contract, so this is deliberately
-    tolerant. When nothing is found the answer is ``(None, None)`` — unknown,
-    never zero.
+    Each ``step_finish`` event reports that step's *new* tokens. Summing gives
+    the run total; taking the last event reports one step only (measured: 169
+    vs 43,602 input tokens on a single run). Cache reads are summed because
+    providers bill them per token processed.
     """
-    best: tuple[int | None, int | None] = (None, None)
+    total_in = total_out = total_reason = total_cache = 0
+    found = False
     for line in text.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -264,17 +272,34 @@ def extract_token_usage(text: str) -> tuple[int | None, int | None]:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        for node in _walk(event):
-            if not isinstance(node, dict):
-                continue
-            tokens = node.get("tokens")
-            if not isinstance(tokens, dict):
-                continue
-            tokens_in = tokens.get("input")
-            tokens_out = tokens.get("output")
-            if isinstance(tokens_in, int) and isinstance(tokens_out, int):
-                best = (tokens_in, tokens_out)
-    return best
+        if event.get("type") != "step_finish":
+            continue
+        part = event.get("part")
+        tokens = part.get("tokens") if isinstance(part, dict) else None
+        if not isinstance(tokens, dict):
+            continue
+        step_in = tokens.get("input")
+        step_out = tokens.get("output")
+        if not (isinstance(step_in, int) and isinstance(step_out, int)):
+            continue
+        found = True
+        total_in += step_in
+        total_out += step_out
+        reasoning = tokens.get("reasoning")
+        if isinstance(reasoning, int):
+            total_reason += reasoning
+        cache = tokens.get("cache")
+        if isinstance(cache, dict) and isinstance(cache.get("read"), int):
+            total_cache += cache["read"]
+    if not found:
+        return TokenTotals()
+    return TokenTotals(total_in, total_out, total_reason, total_cache)
+
+
+def extract_token_usage(text: str) -> tuple[int | None, int | None]:
+    """Return run-level (input, output) tokens, or ``(None, None)`` if unknown."""
+    totals = extract_token_totals(text)
+    return totals.input, totals.output
 
 
 def opencode_executor(
@@ -328,14 +353,16 @@ def opencode_executor(
             error=f"opencode binary not found: {exc}",
         )
 
-    tokens_in, tokens_out = extract_token_usage(proc.stdout)
+    totals = extract_token_totals(proc.stdout)
     return AgentResult(
         stdout=proc.stdout or "",
         stderr=proc.stderr or "",
         exit_code=proc.returncode,
         duration_s=time.monotonic() - started,
-        tokens_input=tokens_in,
-        tokens_output=tokens_out,
+        tokens_input=totals.input,
+        tokens_output=totals.output,
+        tokens_reasoning=totals.reasoning,
+        tokens_cached=totals.cache_read,
         provider_errors=[proc.stderr.strip()] if proc.returncode != 0 and proc.stderr else [],
     )
 
@@ -577,6 +604,8 @@ def execute_run(
             duration_s=agent.duration_s,
             tokens_input=agent.tokens_input,
             tokens_output=agent.tokens_output,
+            tokens_cached=agent.tokens_cached or 0,
+            tokens_reasoning=agent.tokens_reasoning or 0,
             wall_clock_s=agent.duration_s,
             environment_manifest={
                 "worktree": str(worktree),

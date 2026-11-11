@@ -71,6 +71,7 @@ class RunManifest:
     tokens_input: int | None = None
     tokens_output: int | None = None
     tokens_cached: int = 0
+    tokens_reasoning: int = 0
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     files_read: int = 0
     search_ops: int = 0

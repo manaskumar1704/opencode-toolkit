@@ -22,6 +22,7 @@ from benchmarks.driver import (
     dry_run,
     evaluate_gate,
     execute_run,
+    extract_token_totals,
     extract_token_usage,
     run_all_stages,
     run_stage,
@@ -160,15 +161,48 @@ def test_apply_arm_removes_graphify_servers(tmp_path: Path) -> None:
 # -- token extraction ------------------------------------------------------
 
 
-def test_extract_token_usage_reads_last_event() -> None:
+def test_extract_token_totals_sums_every_step() -> None:
     stdout = "\n".join(
         [
-            json.dumps({"tokens": {"input": 10, "output": 2}}),
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 10,
+                            "output": 2,
+                            "reasoning": 1,
+                            "cache": {"read": 0},
+                        }
+                    },
+                }
+            ),
             "not json",
-            json.dumps({"part": {"tokens": {"input": 250, "output": 40}}}),
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 250,
+                            "output": 40,
+                            "reasoning": 9,
+                            "cache": {"read": 100},
+                        }
+                    },
+                }
+            ),
+            json.dumps({"type": "text", "part": {"text": "ignored"}}),
         ]
     )
-    assert extract_token_usage(stdout) == (250, 40)
+
+    totals = extract_token_totals(stdout)
+
+    assert (totals.input, totals.output, totals.reasoning, totals.cache_read) == (
+        260,
+        42,
+        10,
+        100,
+    )
 
 
 def test_extract_token_usage_returns_none_when_absent() -> None:
