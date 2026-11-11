@@ -119,8 +119,11 @@ def cmd_task(args: argparse.Namespace) -> int:
 
 def _run_check(check_cmd: str, root: Path) -> bool:
     argv = shlex.split(check_cmd)
-    if shutil.which(argv[0]):
-        argv[0] = str(Path(shutil.which(argv[0])))
+    if not argv:
+        return False
+    resolved = shutil.which(argv[0])
+    if resolved:
+        argv[0] = resolved
     try:
         proc = subprocess.run(argv, cwd=root, timeout=600, capture_output=True, check=False)
         return proc.returncode == 0

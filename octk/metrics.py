@@ -48,9 +48,11 @@ class MetricsStore:
         debug_state = stored.get("debug_state")
         if not isinstance(debug_state, dict):
             debug_state = _fresh_debug_state(stored.get("active_task"))
-        self._data = {
+        stored_active = stored.get("active_task")
+        active_task = stored_active if isinstance(stored_active, str) else None
+        self._data: dict[str, Any] = {
             **_SCHEMA,
-            "active_task": stored.get("active_task"),
+            "active_task": active_task,
             "tasks": [dict(t) for t in stored.get("tasks", [])],
             "unattributed": list(stored.get("unattributed", [])),
             "standing_costs": list(stored.get("standing_costs", [])),
@@ -177,7 +179,7 @@ class MetricsStore:
             }
         )
         self._save()
-        return int(state.get("strikes", 0))
+        return int(state.get("strikes") or 0)
 
     def add_standing(self, label: str, tokens_in: int) -> dict[str, Any]:
         """Record a measured turn-1 input-token standing cost."""

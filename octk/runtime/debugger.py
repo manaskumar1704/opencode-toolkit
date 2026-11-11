@@ -147,7 +147,11 @@ def _parse_and_prune(text: str, root: Path) -> tuple[str, int]:
         std_frame = STD_FRAME_RE.match(line)
         is_frame = bool(header or std_frame)
         if is_frame:
-            path_str = (header.group("path") if header else std_frame.group("path"))
+            path_str = (
+                header.group("path")
+                if header
+                else (std_frame.group("path") if std_frame else "")
+            )
             if _is_project_path(path_str, root):
                 block, i = _keep_frame_block(lines, i)
                 kept.extend(block)

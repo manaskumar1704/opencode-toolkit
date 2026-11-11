@@ -53,11 +53,14 @@ def main() -> int:
         runpy.run_path(script, run_name="__main__")
     except SystemExit:
         raise
-    except BaseException:  # noqa: BLE001 - this wrapper reports and re-exits
-        exc = traceback.TracebackException.from_exception(sys.exc_info()[1])
+    except BaseException:  # this wrapper reports and re-exits
+        _, exc_value, exc_tb = sys.exc_info()
+        if exc_value is None:
+            raise
+        exc = traceback.TracebackException.from_exception(exc_value)
         print(f"Uncaught exception: {exc.exc_type.__name__}: {exc}", flush=True)
         print("Traceback (most recent call last) [octk: project frames only]:", flush=True)
-        _print_frames(sys.exc_info()[2], root)
+        _print_frames(exc_tb, root)
         return 1
     return 0
 

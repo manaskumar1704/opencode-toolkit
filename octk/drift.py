@@ -9,6 +9,7 @@ FastAPI-style route decorators, then compares them against
 from __future__ import annotations
 
 import ast
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,13 +40,13 @@ class DriftResult:
 def _iter_py_files(root: Path) -> list[Path]:
     """Every tracked ``.py`` file, excluding vendored/test/hidden dirs."""
     out: list[Path] = []
-    for dirpath, dirnames, filenames in root.walk():
+    for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [
             d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")
         ]
         for name in filenames:
             if name.endswith(".py"):
-                out.append(dirpath / name)
+                out.append(Path(dirpath) / name)
     return out
 
 

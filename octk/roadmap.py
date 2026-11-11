@@ -110,7 +110,7 @@ def set_status(
         e for e in entries if task_substring.casefold() in str(e.get("text")).casefold()
     ]
     selected = _select(matches, task_substring)
-    line_no = int(selected["line_no"]) - 1
+    line_no = int(str(selected["line_no"])) - 1
     task_text = str(selected["text"])
 
     if alias == "x":

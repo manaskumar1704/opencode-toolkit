@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import time
 from collections.abc import Callable
@@ -36,11 +37,11 @@ def graph_is_fresh(root: Path, config: dict) -> tuple[bool, str]:
     if graph_mtime is None:
         return False, "missing"
     code_files: list[Path] = []
-    for dirpath, dirnames, filenames in root.walk():
+    for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d.lower() not in SKIP_DIRS]
         for name in filenames:
             if Path(name).suffix.lower() in CODE_EXTS:
-                code_files.append(dirpath / name)
+                code_files.append(Path(dirpath) / name)
     code_mtime = _newest_mtime(code_files)
     if code_mtime is None:
         return True, "no-code"

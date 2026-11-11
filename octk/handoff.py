@@ -25,12 +25,14 @@ def _roadmap_state(root: Path) -> tuple[str, str]:
         (str(e["text"]) for e in entries if e.get("status") == "~"),
         "(none in progress)",
     )
-    current_line = next((int(e["line_no"]) for e in entries if e.get("status") == "~"), 0)
+    current_line = next(
+        (int(str(e["line_no"])) for e in entries if e.get("status") == "~"), 0
+    )
     pending = next(
         (
             str(e["text"])
             for e in entries
-            if e.get("status") == " " and int(e["line_no"]) > current_line
+            if e.get("status") == " " and int(str(e["line_no"])) > current_line
         ),
         None,
     )
