@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from octk.approvals import create_approval
@@ -78,7 +76,7 @@ def test_done_updates_task_and_current_line(tmp_root) -> None:
 
 def test_line_endings_preserved(tmp_root) -> None:
     roadmap = tmp_root / ".toolkit" / "specs" / "roadmap.md"
-    roadmap.write_bytes(("# Roadmap\r\n- [ ] item\r\n").encode("utf-8"))
+    roadmap.write_bytes(b"# Roadmap\r\n- [ ] item\r\n")
     create_approval(tmp_root, "item", now=NOW)
     set_status(tmp_root, "item", "current", now=NOW)
     raw = roadmap.read_bytes().decode("utf-8")

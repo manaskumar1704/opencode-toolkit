@@ -8,7 +8,6 @@ from pathlib import Path
 
 from octk.scaffold import init_repo
 
-
 EXPECTED = [
     ".opencode/commands/ideate.md",
     ".opencode/agents/plan.md",

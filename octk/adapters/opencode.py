@@ -10,7 +10,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from ..capabilities import MAX_DESCRIPTION, RegistryError, record_from_dict
 from ..config import load_config

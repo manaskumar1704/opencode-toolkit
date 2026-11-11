@@ -8,8 +8,9 @@ survived".
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 TRUNCATION_MARKER = "[truncated"
 

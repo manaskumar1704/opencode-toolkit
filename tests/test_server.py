@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import types
 from pathlib import Path
 
 import pytest
 
-import octk.server as server
+from octk import server
 from octk.config import ToolkitPaths, read_json
 
 EXPECTED_TOOLS = {

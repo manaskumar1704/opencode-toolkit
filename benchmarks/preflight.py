@@ -42,7 +42,8 @@ class PreflightResult:
 def _run(cmd: list[str], timeout: int = 30) -> tuple[int, str, str]:
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, errors="replace"
+            cmd, capture_output=True, text=True, timeout=timeout, errors="replace",
+            check=False,
         )
         return proc.returncode, proc.stdout, proc.stderr
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:

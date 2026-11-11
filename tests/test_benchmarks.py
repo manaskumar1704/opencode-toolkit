@@ -8,18 +8,17 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.manifest import RunManifest, load_manifest, save_manifest, hash_text
+from benchmarks.manifest import RunManifest, hash_text, load_manifest, save_manifest
 from benchmarks.preflight import check_effort, check_opencode_json, run_preflight
+from benchmarks.report import load_manifests, partition_validity, render_report
 from benchmarks.runner import (
     arm_has,
     create_worktree,
     list_worktrees,
-    remove_worktree,
     read_task_category,
     read_task_prompt,
+    remove_worktree,
 )
-from benchmarks.report import load_manifests, partition_validity, render_report
-
 
 # -- manifest --------------------------------------------------------------
 

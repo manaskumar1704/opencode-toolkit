@@ -138,6 +138,7 @@ def run_agent(worktree: Path, task: dict, arm: str) -> dict:
         ],
         cwd=str(worktree), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=300,
+        check=False,
     )
     duration = round(time.monotonic() - started, 3)
     (RESULTS / f"{task['name']}_{arm}.jsonl").write_text(proc.stdout, encoding="utf-8")
@@ -217,6 +218,7 @@ def run_check(worktree: Path, task: dict) -> bool:
         [str(py), "-m", "pytest", "-q", task["test"]],
         cwd=str(worktree), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=300,
+        check=False,
     )
     (RESULTS / f"{task['name']}_{worktree.name}.pytest.txt").write_text(
         proc.stdout + proc.stderr, encoding="utf-8"

@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -103,9 +103,8 @@ class RunManifest:
                 missing.append(name)
         if not isinstance(self.correctness, dict) or not self.correctness:
             missing.append("correctness")
-        if not self.isolation_verified:
-            if "isolation_verified" not in missing:
-                missing.append("isolation_verified")
+        if not self.isolation_verified and "isolation_verified" not in missing:
+            missing.append("isolation_verified")
         if self.transcript_path and not Path(self.transcript_path).exists():
             missing.append("transcript_path (file missing)")
         return sorted(set(missing))
@@ -118,7 +117,7 @@ class RunManifest:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RunManifest":
+    def from_dict(cls, data: dict[str, Any]) -> RunManifest:
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})
 
@@ -129,7 +128,7 @@ def hash_text(text: str) -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def save_manifest(path: Path, manifest: RunManifest) -> Path:

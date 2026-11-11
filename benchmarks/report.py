@@ -12,12 +12,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmarks.manifest import REQUIRED_FIELDS, load_manifest
+from benchmarks.manifest import load_manifest
 
 
 def load_manifests(directory: Path) -> list:
     """Load every manifest JSON in ``directory`` (recursively)."""
-    from benchmarks.manifest import RunManifest
 
     out = []
     for path in sorted(directory.rglob("*.json")):

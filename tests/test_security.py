@@ -42,6 +42,7 @@ def test_scan_has_no_high_findings() -> None:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        check=False,
     )
     findings = json.loads(proc.stdout)
     high = [f for f in findings if f["severity"] == "HIGH"]

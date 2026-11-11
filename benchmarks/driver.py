@@ -27,15 +27,15 @@ import statistics
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from benchmarks.manifest import RunManifest, hash_text, now_iso, save_manifest
 from benchmarks.preflight import EFFORT_REQUIRED, MODEL_ID, run_preflight
 from benchmarks.runner import (
     RESULTS_DIR,
-    TASKS_DIR,
     create_worktree,
     list_tasks,
     remove_worktree,
@@ -305,6 +305,7 @@ def opencode_executor(
             text=True,
             errors="replace",
             timeout=timeout_s,
+            check=False,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or ""
@@ -361,6 +362,7 @@ def run_oracle(
             text=True,
             errors="replace",
             timeout=timeout_s,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return False, f"oracle timed out after {timeout_s}s"
@@ -378,6 +380,7 @@ def _apply_setup_patch(worktree: Path, task_dir: Path) -> str | None:
         capture_output=True,
         text=True,
         errors="replace",
+        check=False,
     )
     if proc.returncode != 0:
         return f"git apply failed: {(proc.stderr or proc.stdout).strip()}"
@@ -905,8 +908,10 @@ def render_stage_report(report: StageReport) -> str:
     lines = [
         f"# Benchmark Stage {report.stage}",
         "",
-        f"Runs: {len(report.outcomes)}  "
-        f"Passed: {sum(1 for o in report.outcomes if o.passed)}",
+        (
+            f"Runs: {len(report.outcomes)}  "
+            f"Passed: {sum(1 for o in report.outcomes if o.passed)}"
+        ),
         "",
         "## Gate",
         "",

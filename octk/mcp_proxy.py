@@ -88,11 +88,13 @@ async def inspect_external_mcp(root: Path, server_name: str) -> ExternalMcpResul
     """Connect on demand and return compact external tool names + schemas."""
     spec = resolve_server(root, server_name)
     timeout_s = int(load_config(root).get("external_mcp_timeout_s", 30))
-    async with asyncio.timeout(timeout_s):
-        async with stdio_client(_params(root, spec)) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                listed = await session.list_tools()
+    async with (
+        asyncio.timeout(timeout_s),
+        stdio_client(_params(root, spec)) as (read, write),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        listed = await session.list_tools()
     tools = list(getattr(listed, "tools", []) or [])
     lines = [f"External MCP {server_name}: {len(tools)} tool(s)"]
     lines.extend(_tool_line(tool) for tool in tools)
@@ -111,11 +113,13 @@ async def invoke_external_mcp(
     if not tool_name:
         raise ExternalMcpError("tool_name is required when invoking an external MCP")
     timeout_s = int(load_config(root).get("external_mcp_timeout_s", 30))
-    async with asyncio.timeout(timeout_s):
-        async with stdio_client(_params(root, spec)) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments=arguments)
+    async with (
+        asyncio.timeout(timeout_s),
+        stdio_client(_params(root, spec)) as (read, write),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        result = await session.call_tool(tool_name, arguments=arguments)
     text = _content_text(result) + "\n"
     return ExternalMcpResult(text=text, raw_chars=len(text), pruned_chars=len(text))
 

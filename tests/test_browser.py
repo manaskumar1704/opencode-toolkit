@@ -38,7 +38,7 @@ def test_summary_dedup_console_errors() -> None:
 
 def test_summary_truncates_text() -> None:
     text = summarize_snapshot(SNAPSHOT)
-    long_line = [l for l in text.splitlines() if l.startswith("  button Item 0")][0]
+    long_line = next(l for l in text.splitlines() if l.startswith("  button Item 0"))
     text_part = long_line.rsplit(" [", 1)[0]
     assert "z" * 80 not in text_part
     assert text_part.rstrip().endswith("...")
@@ -77,7 +77,7 @@ def _free_port() -> int:
 
 
 def _serve(tmp_path) -> http.server.ThreadingHTTPServer:
-    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(  # noqa: E731
+    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(
         *args, directory=str(tmp_path), **kw
     )
     server = http.server.ThreadingHTTPServer(("127.0.0.1", _free_port()), handler)

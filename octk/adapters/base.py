@@ -7,7 +7,7 @@ second harness must not require editing anything outside ``octk/adapters/``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checkers
     from ..capabilities import CapabilityRecord
@@ -21,7 +21,7 @@ class DiscoveryResult:
     reason channel without a second call.
     """
 
-    records: tuple["CapabilityRecord", ...] = ()
+    records: tuple[CapabilityRecord, ...] = ()
     reason: str | None = None
 
     def __iter__(self):

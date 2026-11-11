@@ -6,14 +6,13 @@ from pathlib import Path
 
 import pytest
 
-import octk.server as server
+from octk import server
 from octk.config import ToolkitPaths
 from octk.metrics import MetricsStore
 from octk.runtime.debugger import DebugResult
 
 
 async def _tool():
-    tools = {t.name: t for t in await server.mcp.list_tools()}
     registry = server.mcp._tool_manager._tools
     return registry["debug_inspect"].fn
 

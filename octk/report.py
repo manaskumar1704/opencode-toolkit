@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from statistics import median, mean
+from statistics import mean, median
 from typing import Any
 
 from .config import read_json
@@ -393,7 +393,7 @@ def build_report(paths: list[Path]) -> str:
         delta = row["delta_vs_bare"]
         out.append(
             f"| {row['label']} | {row['tokens_in']} | "
-            f"{'-' if delta is None else ('%-+d' % delta if isinstance(delta, int) else delta)} |"
+            f"{'-' if delta is None else (f'{delta:+d}' if isinstance(delta, int) else delta)} |"
         )
     if not data["standing"]:
         out.append("(no standing costs recorded; use `octk standing add <label> --tokens-in N`)")

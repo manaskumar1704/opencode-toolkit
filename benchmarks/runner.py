@@ -6,19 +6,14 @@ repository. See handoff D3 (factorial) and D5 (controls).
 
 from __future__ import annotations
 
-import hashlib
 import json
-import shutil
 import subprocess
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from datetime import datetime, timezone
-
-from benchmarks.manifest import RunManifest, hash_text, now_iso, save_manifest
-from benchmarks.preflight import MODEL_ID, run_preflight
+from benchmarks.manifest import RunManifest, hash_text, now_iso
+from benchmarks.preflight import run_preflight
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "benchmarks" / "results"
@@ -136,7 +131,7 @@ def build_manifest_skeleton(
     graphify_available: bool,
 ) -> RunManifest:
     """Build a manifest with all D7 fields populated except results."""
-    from benchmarks.manifest import RunManifest, hash_text
+    from benchmarks.manifest import RunManifest
 
     transcript = RESULTS_DIR / f"{task}_{arm}_seed{seed}_run{run_order}.jsonl"
     manifest = RunManifest(

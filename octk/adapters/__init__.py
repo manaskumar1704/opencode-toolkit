@@ -12,8 +12,8 @@ from __future__ import annotations
 from .base import HarnessAdapter
 from .opencode import OpenCodeAdapter
 from .opencode import discover as discover_capabilities
-from .opencode_scaffold import AGENTS_DIR as agents_dir
 from .opencode_scaffold import AGENT_NAMES as agent_names
+from .opencode_scaffold import AGENTS_DIR as agents_dir
 from .opencode_scaffold import managed_files as scaffold_managed_files
 from .opencode_scaffold import opencode_json as mcp_config
 from .opencode_scaffold import permissions_gate

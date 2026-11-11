@@ -15,11 +15,11 @@ from pathlib import Path
 from . import report as report_mod
 from .adapters import agent_names, agents_dir, mcp_config
 from .approvals import create_approval, list_approvals
+from .audit import run_audit_workflow as run_audit
 from .config import ToolkitPaths, load_config
 from .doctor import format_doctor, run_doctor
 from .handoff import generate_handoff
 from .metrics import MetricsStore, approx_tokens
-from .audit import run_audit_workflow as run_audit
 from .roadmap import parse_roadmap, set_status
 from .scaffold import init_repo
 
@@ -122,7 +122,7 @@ def _run_check(check_cmd: str, root: Path) -> bool:
     if shutil.which(argv[0]):
         argv[0] = str(Path(shutil.which(argv[0])))
     try:
-        proc = subprocess.run(argv, cwd=root, timeout=600, capture_output=True)
+        proc = subprocess.run(argv, cwd=root, timeout=600, capture_output=True, check=False)
         return proc.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False
@@ -353,8 +353,8 @@ def cmd_bench_tools(args: argparse.Namespace) -> int:
 
 def cmd_capabilities(args: argparse.Namespace) -> int:
     """Inspect, discover, verify, or manually register capabilities."""
-    from .adapters import OpenCodeAdapter
     from . import capabilities as caps_mod
+    from .adapters import OpenCodeAdapter
 
     root = get_root()
     sub = args.capabilities_command

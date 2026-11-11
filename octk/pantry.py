@@ -13,7 +13,7 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 HEAD_CHARS = 4096
 
 
-class NameError(ValueError):  # noqa: A001 - literal stdlib-shadowing is intentional
+class NameError(ValueError):
     """Raised when a spec/skill name is invalid or traversal-like."""
 
 

@@ -28,6 +28,9 @@ jobs:
       - name: Static security scan
         run: uv run --no-sync python scripts/security_scan.py
 
+      - name: Lint
+        run: uv run --no-sync ruff check .
+
       - name: Run tests (excluding browser)
         run: uv run --no-sync pytest -q -m "not browser"
 

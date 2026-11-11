@@ -69,11 +69,14 @@ def check_shell_and_exec(path: Path, tree: ast.AST) -> list[Finding]:
             findings.append(
                 Finding("shell-true", "HIGH", str(path), node.lineno, "subprocess call uses shell=True")
             )
-        if name in {"eval", "exec", "compile"} and node.args:
-            if not isinstance(node.args[0], ast.Constant):
-                findings.append(
-                    Finding("dynamic-exec", "HIGH", str(path), node.lineno, f"{name} on a non-literal")
-                )
+        if (
+            name in {"eval", "exec", "compile"}
+            and node.args
+            and not isinstance(node.args[0], ast.Constant)
+        ):
+            findings.append(
+                Finding("dynamic-exec", "HIGH", str(path), node.lineno, f"{name} on a non-literal")
+            )
         if name in {"pickle.load", "pickle.loads", "marshal.loads"}:
             findings.append(
                 Finding("unsafe-deserialize", "HIGH", str(path), node.lineno, f"{name} on untrusted data")
@@ -119,17 +122,20 @@ def check_permissions_and_tempfiles(path: Path, tree: ast.AST) -> list[Finding]:
         name = _call_name(node.func)
         if name == "os.chmod" and len(node.args) >= 2:
             mode = node.args[1]
-            if isinstance(mode, ast.Constant) and isinstance(mode.value, int):
-                if mode.value & 0o077:
-                    findings.append(
-                        Finding(
-                            "permissive-chmod",
-                            "MEDIUM",
-                            str(path),
-                            node.lineno,
-                            f"chmod mode {oct(mode.value)} grants group/other access",
-                        )
+            if (
+                isinstance(mode, ast.Constant)
+                and isinstance(mode.value, int)
+                and mode.value & 0o077
+            ):
+                findings.append(
+                    Finding(
+                        "permissive-chmod",
+                        "MEDIUM",
+                        str(path),
+                        node.lineno,
+                        f"chmod mode {oct(mode.value)} grants group/other access",
                     )
+                )
         if name == "tempfile.mktemp":
             findings.append(
                 Finding("predictable-tempfile", "HIGH", str(path), node.lineno, "tempfile.mktemp is racy")

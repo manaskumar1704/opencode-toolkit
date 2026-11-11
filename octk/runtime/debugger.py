@@ -8,9 +8,9 @@ import re
 import shlex
 import shutil
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from ..config import DEFAULT_CONFIG
 from ..diagnostics import DiagnosticResult, build_result

@@ -51,6 +51,7 @@ def run_command(
             capture_output=True,
             text=True,
             errors="replace",
+            check=False,
         )
         return CommandResult(stdout=proc.stdout or "", stderr=proc.stderr or "", returncode=proc.returncode)
     except subprocess.TimeoutExpired as exc:

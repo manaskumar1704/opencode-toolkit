@@ -43,7 +43,7 @@ def _log(tool: str, kind: str, raw_chars: int, pruned_chars: int) -> None:
     metrics_path = ToolkitPaths(get_root()).metrics
     try:
         MetricsStore(metrics_path).log_tool_call(tool, raw_chars, pruned_chars, kind=kind)
-    except Exception:  # noqa: BLE001 - metrics must never break a tool call
+    except Exception:  # noqa: BLE001, S110 - metrics must never break a tool call
         pass
 
 
@@ -82,7 +82,7 @@ def _record_breaker(strikes: int, signature: str | None, detail: str) -> None:
         MetricsStore(ToolkitPaths(get_root()).metrics).record_breaker(
             strikes, signature, detail
         )
-    except Exception:  # noqa: BLE001 - metrics must never break a tool call
+    except Exception:  # noqa: BLE001, S110 - metrics must never break a tool call
         pass
 
 

@@ -324,8 +324,10 @@ def _fixing_executor(tokens_by_arm: dict[str, int] | None = None):
             "def value():\n    return 2\n", encoding="utf-8"
         )
         return AgentResult(
-            stdout='{"tokens": {"input": %d, "output": 5}}\n'
-            % tokens_by_arm.get(spec.arm, 100),
+            stdout=json.dumps(
+                {"tokens": {"input": tokens_by_arm.get(spec.arm, 100), "output": 5}}
+            )
+            + "\n",
             exit_code=0,
             duration_s=1.0,
             tokens_input=tokens_by_arm.get(spec.arm, 100),

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import ToolkitPaths, atomic_write_json, read_json
+from .config import atomic_write_json, read_json
 
 _SCHEMA: dict[str, Any] = {
     "version": 1,

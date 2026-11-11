@@ -1,5 +1,5 @@
-from octk.multi_stats import median
 from octk.multi_report import summary
+from octk.multi_stats import median
 
 
 def test_median_odd():

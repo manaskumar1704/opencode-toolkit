@@ -38,6 +38,23 @@ octk-mcp = "octk.server:main"
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
+    "ruff>=0.17,<1",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# Vendored third-party skill scripts are not ours to rewrite.
+extend-exclude = [".opencode", ".toolkit", "benchmarks/results"]
+
+[tool.ruff.lint]
+# Keep ruff's default rule set; pin only the deliberate exceptions below.
+ignore = [
+    "PLR2004", # magic values in parsers and benchmarks are readable
+    "PLR0911", # several returns in dispatch functions are clearer than nesting
+    "PLR0912", # same for branch-heavy parsers
+    "PLR0913", # argparse wiring legitimately takes many arguments
+    "PLR0915", # report builders are long but linear
 ]
 
 [build-system]
