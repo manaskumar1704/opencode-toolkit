@@ -140,20 +140,25 @@ the durable record.
 ### R-2 Complete the benchmark suite ◐
 
 - [x] All 8 task fixtures (D4 categories 1–8).
-- [ ] Factorial driver with staged gates and stop rule.
-- [ ] Randomised run order, ≥5 reps, transcript capture.
+- [x] Factorial driver with staged gates and stop rule (`benchmarks/driver.py`).
+- [x] Randomised run order, ≥5 reps, transcript capture.
+- [ ] Execute Stage 1 (A, E) against the real cohort.
 
-### R-3 External benchmark
+### R-3 External benchmark ✅ (selected)
 
-- Verify Terminal-Bench 2.0 OpenCode runner feasibility.
-- Else small SWE-bench Lite pilot.
-- Choose exactly one.
+- [x] Terminal-Bench 2.0 chosen (Harbor, `terminal-bench@2.0`, 89 tasks).
+- [x] Cohort lock and command builder (`benchmarks/external.py`).
+- [x] Feasibility ladder and pre-registration template
+      (`docs/v2/EXTERNAL_BENCHMARK.md`).
+- [ ] Close the container adapter gap and run the ladder.
 
-### R-4 Release hardening
+### R-4 Release hardening ◐
 
-- Security review of subprocess and approval paths.
-- Licence audit.
-- Update `docs/DESIGN.md` for v2 components.
+- [x] Security review opened; scanner in CI; four findings fixed
+      (`docs/v2/SECURITY_REVIEW.md`).
+- [ ] Phase B security fixes (S-05, S-07, S-10).
+- [ ] Licence audit.
+- [ ] Update `docs/DESIGN.md` for v2 components.
 
 ---
 

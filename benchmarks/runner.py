@@ -37,7 +37,9 @@ def create_worktree(repo: Path, run_id: str, base_ref: str = "HEAD") -> Path:
     """Create an isolated worktree for one run. Raises on failure."""
     parent = Path(tempfile.gettempdir()) / "octk-bench"
     parent.mkdir(parents=True, exist_ok=True)
-    target = parent / run_id
+    # Defence in depth: never let a caller-supplied id escape the parent dir.
+    safe = run_id.replace("\\", "_").replace("/", "_").strip("._") or "run"
+    target = parent / safe
     if target.exists():
         remove_worktree(repo, target)
     proc = _git(repo, "worktree", "add", "--detach", str(target), base_ref)

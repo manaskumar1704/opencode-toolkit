@@ -132,9 +132,15 @@ def read_json(path: Path, default: Any = None) -> Any:
         return default
 
 
-def atomic_write_json(path: Path, data: Any) -> None:
-    """Write JSON atomically: temp file in the same dir, then os.replace."""
+def atomic_write_json(path: Path, data: Any, mode: int | None = None) -> None:
+    """Write JSON atomically: temp file in the same dir, then os.replace.
+
+    ``mode`` restricts the resulting file's permissions. Approval and metric
+    state pass ``0o600`` because they can carry task names and spend tokens.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    if mode is not None:
+        os.chmod(tmp, mode)
     os.replace(tmp, path)

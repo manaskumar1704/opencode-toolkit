@@ -34,7 +34,7 @@ def create_approval(
         "consumed_at": None,
     }
     data["approvals"].append(approval)
-    atomic_write_json(path, data)
+    atomic_write_json(path, data, mode=0o600)
     return approval
 
 
@@ -83,4 +83,4 @@ def consume_approval(root: Path, approval: dict[str, Any], now: float) -> None:
         if record.get("id") == approval.get("id"):
             record["consumed_at"] = now
             break
-    atomic_write_json(path, data)
+    atomic_write_json(path, data, mode=0o600)

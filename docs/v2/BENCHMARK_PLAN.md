@@ -102,10 +102,11 @@ tune OCTK.
 - Same OpenCode version, model, provider, permissions, environment.
 - Pinned Ponytail and Graphify versions; Graphify state labelled cold / warm /
   incremental.
-- Randomised run order (not yet implemented).
-- ≥5 repetitions per task/arm; 10 when variance is high (not yet enforced).
+- Randomised run order, seeded and recorded (`benchmarks/driver.build_schedule`).
+- ≥5 repetitions per task/arm, enforced by `build_schedule` (10 when variance
+  is high).
 - Preserve raw transcripts, diffs, test output, timings, token usage,
-  environment manifests.
+  environment manifests (`benchmarks/results/transcripts/`).
 - Record provider errors, rate limits, retries separately.
 - Never allow parallel runs in one repository.
 
@@ -189,3 +190,40 @@ result.
 - Free-model rate limits may force gaps; record them, do not hide them.
 - Browser tasks require Chromium and add setup cost.
 - Graphify cold indexing is measured separately from warm queries.
+
+---
+
+## 9. Driver
+
+`benchmarks/driver.py` runs the design above.
+
+```bash
+# inspect the queue without spending anything
+python -m benchmarks.driver --stage 1 --dry-run
+
+# execute a stage (requires explicit confirmation)
+python -m benchmarks.driver --stage 1 --yes
+python -m benchmarks.driver --stage all --yes
+```
+
+| Stage | Arms | Runs | Gate |
+|---|---|---:|---|
+| 1 | A, E | 80 | no correctness regression **and** a measurable efficiency signal |
+| 2 | A, B, C, E | 160 | external tools show an independent effect |
+| 3 | A–H | 320 | terminal stage |
+
+- A correctness regression in any task makes the gate **blocking**: the driver
+  stops and prints `STOP`, and no later stage runs.
+- Cost is `UNKNOWN` until Stage 1 has measured runs; any later projection is
+  labelled "extrapolation" in the report.
+- Every run writes `benchmarks/results/manifests/*.json` and
+  `benchmarks/results/transcripts/*.jsonl`; a missing D7 field marks the run
+  `INVALID` rather than defaulting.
+
+---
+
+## 10. External benchmark
+
+Terminal-Bench 2.0 via Harbor. Details, cohort lock, and the feasibility ladder
+are in [`EXTERNAL_BENCHMARK.md`](EXTERNAL_BENCHMARK.md); the command builder is
+`benchmarks/external.py`.

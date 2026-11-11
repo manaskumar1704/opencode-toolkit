@@ -113,3 +113,25 @@ async def test_inspect_url_survives_signals(tmp_path) -> None:
         assert "#submit" in result.text
     finally:
         server.shutdown()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/computeMetadata/v1/",
+        "https://METADATA/",
+    ],
+)
+async def test_inspect_url_refuses_metadata_hosts(url: str) -> None:
+    with pytest.raises(ValueError, match="metadata host"):
+        await inspect_url(url)
+
+
+async def test_inspect_url_still_allows_localhost() -> None:
+    # The guard must not break local fixtures: only the host check runs here,
+    # and localhost is not on the block list.
+    from octk.runtime.browser import BLOCKED_HOSTS
+
+    assert "127.0.0.1" not in BLOCKED_HOSTS
+    assert "localhost" not in BLOCKED_HOSTS
