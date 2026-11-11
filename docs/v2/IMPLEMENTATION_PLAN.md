@@ -144,7 +144,10 @@ the durable record.
 - [x] Randomised run order, ≥5 reps, transcript capture.
 - [x] Isolation repaired: standalone workspace, bwrap host mask, oracle
       exclusion, `--standalone` server, leak detection (S-12/S-13).
-- [ ] Execute Stage 1 (A, E) against the real cohort.
+- [x] Execute Stage 1 (80 runs): 80/80 correct, **no efficiency signal**;
+      E +21.3% tokens, 49.8% slower. See `BENCHMARK_RESULTS.md`.
+- [ ] Add a large-context task and re-run Stage 1.
+- [ ] Stage 2 blocked until a real effect exists.
 
 ### R-3 External benchmark ✅ (selected)
 

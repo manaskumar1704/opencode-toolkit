@@ -1,298 +1,293 @@
-# octk — The OpenCode Toolkit
+# octk — the information layer for coding agents
 
-![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
-![FastMCP](https://img.shields.io/badge/FastMCP-MCP%20Server-orange)
-![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
-![Pytest](https://img.shields.io/badge/Pytest-123%20passing-brightgreen?logo=pytest&logoColor=white)
-![OpenCode](https://img.shields.io/badge/OpenCode-MCP%20Client-111827)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-322%20passing-brightgreen?logo=pytest&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-8%20tools-orange)
+![OpenCode](https://img.shields.io/badge/OpenCode-first%20harness-111827)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
+![Status](https://img.shields.io/badge/status-alpha-yellow)
 
-Just-In-Time Context Routing, TTY-Gated Human Approvals, and Runtime Pruners for AI Coding Agents.
+**Give coding agents the right information, at the right time, in the right
+format — and prove it with numbers you can check.**
 
-**[Why octk?](#why-octk)** • **[5-Minute Quickstart](#5-minute-quickstart)** • **[Architecture](#architecture)** • **[Benchmarks](#benchmarks--honest-measurement-model)** • **[CLI & Tools Reference](#cli-reference)** • **[Architectural Provenance](#architectural-provenance-what-i-built-vs-what-i-borrowed--integrated)**
+`octk` is a local CLI (`octk`) plus an MCP server (`octk-mcp`) that describes
+the tools you already have, loads detail only when a task needs it, gates
+consequential actions behind a human, and measures what actually happened.
 
-`octk` keeps an AI coding agent's context window tiny, gates roadmap completion behind out-of-band human approval, and records honest, verifiable metrics. It ships as a lightweight Python CLI (`octk`) plus a local Model Context Protocol server (`octk-mcp`) that OpenCode mounts automatically.
+> [!IMPORTANT]
+> **We do not claim token savings.** In our 80-run benchmark (2026-11-11),
+> OCTK kept correctness at **80/80** but used **21% more input tokens** and was
+> **50% slower** than the same agent without it. The confidence interval for
+> tokens crosses zero. Full numbers, method, and the architecture-vs-
+> implementation breakdown: [`docs/v2/BENCHMARK_RESULTS.md`](docs/v2/BENCHMARK_RESULTS.md).
 
-## Three Core Guarantees
+---
 
-- **Lazy Context ("The Chef's Pantry"):** Instead of dumping every markdown spec and skill into Turn 1, the agent starts with a 21-line rule file and a 1-page pantry index. Specs and skills load on demand; runtime debuggers and headless browser outputs are pruned down to project-local stack frames and actionable signals.
-- **The TTY Approval Gate:** No agent can mark a roadmap item `[x]` done on its own. Running `octk approve "<task>"` in a real human terminal (TTY required) mints a time-limited, spend-once token that the agent must consume to check off a task.
-- **Honest Telemetry:** Every logged number is strictly classified as `measured`, `counterfactual`, or `load`. Token savings are computed from real paired runs, and pruner signal retention is scored automatically—never assumed or hand-pasted.
+## Why this exists
 
-## Why octk?
+Coding agents fail in three predictable ways:
 
-Coding agents lose time, money, and accuracy in three predictable ways:
-
-| Common Agent Failure | What Happens Without octk | How octk Solves It |
+| Failure | What it looks like | What octk does |
 |---|---|---|
-| **1. Turn-1 Context Dumping** | The entire spec tree, skill files, and heavy tool schemas are injected on Turn 1—burning tens of thousands of input tokens before a single line of code is edited. | **JIT Pantry Router:** Serves a tiny 1-page index (`glance_pantry`) and equips specific specs/skills only when requested (+908 Turn-1 token delta vs. bare). |
-| **2. Unverified Self-Approval** | Asked to "mark the roadmap done," an agent will edit the markdown file itself. Even if unit tests pass, the human never reviewed the change. | **Out-of-Band TTY Gate:** Blocks shell/file edits to `.toolkit/approvals.json` and requires a human terminal (`octk approve`) to mint a spend-once token. |
-| **3. Unverifiable "90% Savings" Claims** | Tooling claims massive token reductions without showing raw-vs-pruned byte counts or proving that critical crash signals survived pruning. | **Scored Signal Retention:** Logs exact raw vs. pruned bytes and fails CI if any required crash signal (exception class, local var, HTTP 4xx/5xx) is lost. |
+| **Context dumping** | Every spec, skill, and tool schema is injected on turn 1 | A tiny pantry index; specs load on demand |
+| **Unverified self-approval** | The agent marks its own roadmap task `[x]` | A TTY-gated, spend-once approval token |
+| **Unverifiable claims** | "90% fewer tokens" with no raw numbers | Every metric tagged `measured`, `counterfactual`, or `load` |
 
-## 5-Minute Quickstart
+The fourth failure is the one we hit ourselves: **building the wrong benchmark**.
+That is why the result above is published, not hidden.
 
-### Step 1: Install octk (once on your computer)
+## What it does
 
-Open your terminal, go into the `octk` folder, and sync the environment using `uv`:
-
-```bash
-cd path/to/octk
-uv sync
-
-# Optional: install headless Chromium once if you want browser inspection
-uv run playwright install chromium
-```
-
-### Step 2: Initialize octk inside your project
-
-Go to any coding project you want to work on and run `octk init`:
-
-```bash
-cd path/to/your-project
-octk init
-```
-
-What this creates automatically:
-
-- `AGENTS.md` — A tiny (~24-line) traffic-cop file telling the agent how to use the pantry.
-- `.toolkit/` — Your project's specs, roadmap, config, and metrics store.
-- `.opencode/` — Pre-configured multi-model agents (`plan`, `build`, `explore`, `verifier`), the `/ideate` command, and `opencode.json`.
-
-### Step 3: Connect octk to OpenCode
-
-Print the ready-to-use configuration snippet and make sure it is in your project's `opencode.json`:
-
-```bash
-octk mcp-config
-```
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "octk": {"type": "local", "command": ["octk-mcp"], "codemode": false}
-    }
-  },
-  "permissions": [
-    {"action": "shell", "resource": "octk approve *", "effect": "deny"},
-    {"action": "edit", "resource": ".toolkit/approvals.json", "effect": "deny"},
-    {"action": "edit", "resource": ".toolkit/metrics.json", "effect": "deny"},
-    {"action": "edit", "resource": ".toolkit/specs/roadmap.md", "effect": "ask"}
-  ]
-}
-```
-
-> **One-Time Safety Check:** After merging the snippet into `opencode.json`, verify that the `octk approve *` shell rule is set to `"deny"` and `.toolkit/approvals.json` edits are blocked. These permission rules stop a drifting agent, while the TTY check inside `octk approve` provides the hard gate.
-
-### Step 4: Run your first task & approve it!
-
-Now you can plan, code, approve tasks, and generate reports:
-
-```bash
-# 1. Start tracking a task
-octk task start build-login --mode with_octk --model opencode-go/deepseek-v4.1-flash
-
-# 2. Launch OpenCode (run /ideate to design specs, or ask the agent to build your task)
-opencode
-
-# 3. When the agent finishes and asks for your approval, run this in YOUR terminal:
-octk approve "build-login"
-
-# 4. Close the task and view your telemetry report
-octk task end --status completed --tokens-in 12500 --tokens-cached 9800 --tokens-out 1800 --turns 5 --check "pytest -q"
-octk report
-octk doctor
-octk handoff
-```
+| Pillar | What you get |
+|---|---|
+| **Capability Registry** | A read-only inventory of skills, commands, plugins, MCP servers, and CLIs — with L0/L1/L2 detail |
+| **Capability Selector** | Explainable relevance ranking: why a capability was picked or skipped |
+| **Pantry** | `glance_pantry` inventory + `equip_spec` / `equip_skill` on demand |
+| **Human gate** | `octk approve "<task>"` in a real terminal; the agent cannot self-approve |
+| **Diagnostics** | Pruned tracebacks and browser snapshots with scored signal retention |
+| **Honest telemetry** | Gross vs net, measured vs estimated, per task and per tool |
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  subgraph Session["OpenCode Session"]
-    AG["AGENTS.md rules (~24 lines)"]
-    NAT["native skills (.opencode/skills/)"]
-    AG --> Agent
-    NAT --> Agent
-    Agent -->|"octk_glance_pantry / octk_debug_inspect / ..."| MCP
+  subgraph Harness["OpenCode (first harness)"]
+    A["AGENTS.md<br/>conditional rules"]
+    S["native skills<br/>.opencode/skills"]
   end
 
-  subgraph Server["octk-mcp Server (stdio, 9 tools, FastMCP)"]
-    T1["glance_pantry · equip_spec · equip_skill · update_roadmap"]
-    T2["run_audit_workflow · check_spec_drift · debug_inspect · browser_inspect"]
-    T3["equip_external_mcp (lazy stdio proxy)"]
+  subgraph Boundary["octk/adapters — harness boundary"]
+    AD["HarnessAdapter<br/>detect · discover · install hints"]
   end
 
-  MCP --> Server
-  Server --> State[".toolkit/ state\nindex, specs, roadmap,\nmetrics, approvals, config"]
-  Server --> Pruners["Runtime Pruners\ndebug runner + trace wrapper\nheadless Chromium (Playwright)"]
-  State --> Report["octk report\n(Markdown / JSON)"]
+  subgraph Core["octk core — harness-neutral"]
+    REG["Capability Registry<br/>L0 / L1 / L2"]
+    SEL["Selector<br/>explainable ranking"]
+    PAN["Pantry<br/>glance · equip"]
+    DIAG["Diagnostics<br/>pruners + retention"]
+    MET["Telemetry<br/>measured / counterfactual / load"]
+  end
+
+  subgraph Providers["external providers — detected, never bundled"]
+    P1["Ponytail"]
+    P2["Graphify"]
+  end
+
+  A --> AD
+  S --> AD
+  AD --> REG
+  REG --> SEL
+  REG --> PAN
+  PAN --> DIAG
+  DIAG --> MET
+  AD -.-> P1
+  AD -.-> P2
+  MET --> R["octk report"]
 ```
 
-- **AGENTS.md** is the only always-loaded surface: ~21 rendered lines on Turn 1.
-- **Native** `.opencode/skills/` stay native: `octk_equip_skill` serves only supplemental project files placed in `.toolkit/skills/`.
-- **Configurable Namespace:** `AGENTS.md` references tools using the configured `server_name` (default `octk`); the OpenCode server key in `opencode.json` defaults to `octk` and can be aligned with it.
+**Boundary rule:** core never imports a harness. Adding a second harness means
+adding one adapter, not editing the core. `tests/test_boundaries.py` enforces it.
 
-## The Approval Gate
+## Quickstart
+
+```bash
+# 1. Install (from source; PyPI packaging is prepared but not published)
+git clone https://github.com/manaskumar1704/opencode-toolkit
+cd opencode-toolkit
+uv tool install --editable .
+
+# 2. Scaffold a project
+cd path/to/your-project
+octk init
+
+# 3. Print the OpenCode config and merge it
+octk mcp-config
+```
+
+`octk init` creates:
+
+- `AGENTS.md` — a short, static traffic-cop file
+- `.toolkit/` — specs, roadmap, config, metrics, approvals
+- `.opencode/agents/` — `plan`, `build`, `explore`, `verifier`
+- `opencode.json` — the MCP entry, using the portable `octk-mcp` command
+
+Then run `opencode` and ask for work. When the agent wants to mark a roadmap
+item done:
+
+```bash
+octk approve "build-login"   # human terminal only
+```
+
+## Benchmark: what we measured
+
+**Stage 1** — 8 task categories × 2 arms × 5 reps = 80 runs.
+Cohort: OpenCode 2.2.6, `opencode-go/beam-free`, effort `high`.
+Isolation: standalone workspace, `bwrap`, private `/tmp`, hidden oracle.
+
+| Metric | A (OCTK off) | E (OCTK on) |
+|---|---:|---:|
+| Correctness | **40/40** | **40/40** |
+| Input tokens, mean | 10,003 | 12,130 (**+21.3%**) |
+| Input tokens, 95% CI | — | −46.7%..+0.8% (crosses zero) |
+| Duration, mean | 29.5s | 44.2s (**+49.8%**) |
+| Duration, 95% CI | — | −106.7%..−2.5% (significant slowdown) |
+
+**Gate:** paired bootstrap, 5,000 resamples, minimum 5% token or 10% duration
+effect. Result: **no measurable efficiency signal → Stage 2 blocked.**
+
+### Per task
+
+| Task | A tokens | E tokens | Δ |
+|---|---:|---:|---:|
+| architecture_drift | 6,442 | 8,381 | +30.1% |
+| browser_issue | 3,183 | 3,589 | +12.8% |
+| capability_overlap | 2,999 | 3,443 | +14.8% |
+| multi_file_feature | 18,577 | 28,690 | +54.4% |
+| refactor | 6,296 | 4,673 | **−25.8%** |
+| repo_exploration | 8,709 | 9,598 | +10.2% |
+| simple_bug | 5,110 | 3,805 | **−25.5%** |
+| test_diagnosis | 22,214 | 24,824 | +11.7% |
+
+### What we learned
+
+| Layer | Finding |
+|---|---|
+| **Architecture** | A fixed MCP schema tax of **~500 tokens per run**. v1 measured the same floor: bare 6,823 → octk 7,731 (**+908 turn-1 tokens**) |
+| **Implementation** | `check_spec_drift` dumped 11k chars per call; `glance_pantry` was mandatory and called 25 times; `equip_spec` added ~1k chars per call |
+| **Harness** | `/tmp` exposed pytest artifacts containing oracle copies; one pre-fix run spent 22 steps hunting them |
+| **Benchmark design** | All 8 tasks are small-repo edits. The pantry only pays off when the baseline would otherwise load many specs/skills |
+
+**Verdict:** the fixed overhead is architectural but modest. The gap is mostly
+implementation (tool output volume, extra steps) plus a suite that cannot
+exercise the pantry's intended win. The idea is untested at the scale where it
+matters — not disproven.
+
+### v1 was mixed too
+
+| v1 task | With OCTK | Without | Δ |
+|---|---:|---:|---:|
+| roadmap-gate | 61,645 | 91,957 | −33.0% |
+| metrics-tokens | 85,011 | 101,565 | −16.3% |
+| pantry-desc | 102,380 | 86,718 | +18.1% |
+| scaffold-gitignore | 96,948 | 69,201 | +40.1% |
+
+The same pattern: wins where exploration is expensive, losses where the task is
+small enough that the fixed tax dominates.
+
+## Capability registry
+
+The registry describes what you already have. It never copies skill bodies and
+never invokes anything during discovery.
+
+```bash
+$ octk capabilities discover          # dry run
+$ octk capabilities discover --write  # update .toolkit/capabilities/index.json
+$ octk capabilities list --level L1
+$ octk capabilities select "review frontend design"
+```
+
+```
+Task terms: design, frontend, review
+Selected (3):
+  design-taste-frontend [skill] score=0.67 - matched design, frontend
+  imagegen-frontend-web [skill] score=0.67 - matched design, frontend
+  free-tier-deploy [skill] score=0.33 - matched frontend
+Skipped (2):
+  high-end-visual-design [skill] - lower rank than the selected set (matched design)
+  imagegen-frontend-mobile [skill] - lower rank than the selected set (matched frontend)
+```
+
+Disclosure levels:
+
+| Level | Contents | When |
+|---|---|---|
+| **L0** | Grouped names only | Always |
+| **L1** | Invocation, permissions, availability | When asked |
+| **L2** | Full instructions / schema | Only when the task needs it |
+
+## The approval gate
 
 ```mermaid
 flowchart TB
-  A["Agent wants a roadmap task marked [x] done"] --> G{"Valid open approval for that task?"}
-  G -->|"Yes"| W["Status written to roadmap.md, approval consumed"]
-  G -->|"No"| E["GateError returned; agent stops and asks the human"]
-  H["Human runs: octk approve <task> (TTY required)"] -->|"Mints time-limited, spend-once approval"| G
+  A["Agent wants a roadmap item marked [x]"] --> G{"Valid open approval?"}
+  G -->|Yes| W["Write status, consume token"]
+  G -->|No| E["GateError: agent must ask the human"]
+  H["Human: octk approve 'task' (TTY)"] -->|"time-limited, spend-once"| G
 ```
 
-## Session Safety & Cache Hygiene
+The gate is **policy-enforced**, not a sandbox: an agent with unrestricted shell
+access can still edit files. `octk doctor` checks that the OpenCode deny rules
+are present, and the README says so plainly.
 
-Five guardrails keep long sessions from degrading (and keep provider prefix caching intact):
+## MCP surface — 8 tools
 
-- **2-Strike Circuit Breaker:** `debug_inspect` hashes `(command, returncode, first error line)`. The second consecutive identical failure appends an explicit override authorizing a raw shell retry or human escalation; any success or new task resets the streak.
-- **1-File Fast-Path:** when the prompt names one file and a self-contained small fix, `AGENTS.md` authorizes skipping `glance_pantry` / `equip_spec` and editing directly. The root file remains a fixed template with no timestamps or live task state, so the provider prefix stays byte-stable.
-- **Cache Telemetry & Doctor:** `octk task end --tokens-cached N` records `cache.read` tokens and reports `cache_hit_rate = cached / (input + cached)`. `octk doctor` warns about dynamic `AGENTS.md` text and missing approval-gate deny rules.
-- **Lazy External MCPs:** configure stdio servers under `external_mcps`; Turn 1 shows only a one-line description. `equip_external_mcp` connects on demand to list tools or call one.
-- **Context Handoff:** `octk handoff` snapshots roadmap state, `git status` / `git diff --stat`, the latest runtime signal, open approvals, and a 3-line resume prompt. A new session can hydrate it with `equip_spec("handoff")`.
-
-## Benchmarks & Honest Measurement Model
-
-Every metric recorded by `octk` is tagged by how it was obtained:
-
-- **measured** — Exact raw bytes captured vs. exact pruned bytes returned. Headline numbers come strictly from here.
-- **counterfactual** — The small returned payload is real; the "what would have been loaded on Turn 1" payload is estimated from the spec/skill tree. Kept in a separate report section.
-- **load** — Context overhead added by `octk` itself (MCP tool schema bytes and `equip_*` calls).
-
-**Token Proxy vs. Exact Standing Costs:** Tool-call reports label tokens as `approx` (chars / 4). Turn-1 standing costs (below) are the exception—they are recorded from exact provider token readouts.
-
-### Standing Context Costs (Exact Turn-1 Input Tokens)
-
-`octk standing add <label> --tokens-in N` records an exact Turn-1 input token count (`input + cache.read` from the provider's usage readout) comparing a bare repository against an `octk`-enabled repository:
-
-| Label | Turn-1 Input Tokens | Delta vs. bare |
+| Tool | Purpose | Cost |
 |---|---|---|
-| bare | 6,823 | +0 |
-| octk | 7,731 | +908 |
+| `glance_pantry` | Compact inventory | small |
+| `equip_spec` | Load one spec | medium |
+| `equip_skill` | Load one extra skill | medium |
+| `equip_external_mcp` | Inspect/call a configured external MCP | on demand |
+| `debug_inspect` | Pruned test traceback | measured |
+| `browser_inspect` | Headless Chromium summary | measured |
+| `check_spec_drift` | Python-AST drift report (capped at 20 items/section) | measured |
+| `capability_registry` | L0/L1/L2 registry view | small |
 
-### Repo Dogfood Benchmark (Paired Tasks: with_octk vs. without_octk)
+Demoted to CLI to keep the schema lean:
 
-| Task | dur_with (s) | dur_without (s) | dur_%red | turns_with | turns_without | turns_%red | tok_with | tok_without | tok_%red | Acceptance |
-|---|---|---|---|---|---|---|---|---|---|---|
-| roadmap-gate | 19.6 | 26.4 | 25.7% | 6 | 8 | 25.0% | 61,645 | 91,957 | 33.0% | pass |
-| pantry-desc | 25.5 | 25.7 | 0.5% | 7 | 7 | 0.0% | 102,380 | 86,718 | -18.1% | pass |
-| metrics-tokens | 24.5 | 20.6 | -19.4% | 6 | 7 | 14.3% | 85,011 | 101,565 | 16.3% | pass |
-| debugger-locals | 213.9 | 141.8 | -50.8% | 30 | 18 | -66.7% | 902,532 | 483,855 | -86.5% | pass |
-| scaffold-gitignore | 21.1 | 19.2 | -10.0% | 7 | 7 | 0.0% | 96,948 | 69,201 | -40.1% | pass |
+- `run_audit_workflow` → `octk audit`
+- `update_roadmap` → `octk roadmap set`
 
-### What the Dogfood Numbers Show
+`OCTK_BROWSER=0` drops `browser_inspect` and its schema.
 
-- **Where `octk` wins (`roadmap-gate`, `metrics-tokens`):** On multi-file spec/state tasks, `octk` successfully cut turns by 14.3%–25.0%, wall-clock time by up to 25.7%, and total tokens by 16.3%–33.0%.
-- **Where `octk` pays a fixed tax (`pantry-desc`, `scaffold-gitignore`):** On trivial 1-file edits against an empty bare repo, mounting the 8 MCP tool schemas and calling `glance_pantry()` adds a predictable baseline token schema tax.
-- **The self-referential `debugger-locals` anomaly (now guarded):** The `debugger-locals` task required fixing a bug *inside* `octk_debug_inspect`. Because `octk` strictly forces the agent to use `octk_debug_inspect` for testing, the agent recursively attempted to use the broken debugger to debug the broken debugger, hitting an `allowed_commands` guardrail and looping for 30 turns (vs. 18 turns in bare bash). The 2-Strike Circuit Breaker now authorizes an explicit bypass after two identical failures.
+## Honest measurement model
 
-> Skills, MCP servers, and plugins must be identical in both worktrees—or off in both. The only allowed asymmetry is `octk`'s own MCP entry, its `AGENTS.md` rules, and its `.toolkit/` state (with `bare` as the inverse). Review/critique skills are pinned to an exact version, never `latest`. Identical model, identical prompts, and identical acceptance commands in both arms. Results are published strictly from generated reports; nothing is hand-pasted.
+Every number is tagged:
 
-## Tool Bench & Signal Retention
+- **measured** — raw bytes in, pruned bytes out, provider token readouts
+- **counterfactual** — what *would* have been loaded, clearly separated
+- **load** — the overhead OCTK itself adds
 
-```bash
-octk bench tools               # Writes reports/BENCH_TOOLS.md
-uv run octk bench tools --json # Outputs raw benchmark results as JSON on stdout
-```
+Rules:
 
-The tool bench builds throwaway fixtures in temporary directories, runs the pruners for real, and scores two orthogonal metrics per case:
+1. Correctness is a hard gate. Efficiency never compensates for a regression.
+2. Gross and net savings are reported separately.
+3. Character savings are not token savings.
+4. A run missing any integrity field is `INVALID`, not defaulted.
+5. No performance claim without a measured run.
 
-1. **Character Savings** (raw bytes vs. pruned bytes).
-2. **Signal Retention** (the exact fraction of required debugging signals—test name, exception class, local variable values, console errors, HTTP 4xx/5xx failures—that survive pruning).
-
-Retention is scored, never assumed: the CLI exits 1 if any non-skipped case loses a single required signal. Browser cases are marked skipped (never faked) when headless Chromium is unavailable. See the committed report in [`reports/BENCH_TOOLS.md`](reports/BENCH_TOOLS.md).
-
-## CLI Reference
+## CLI reference
 
 | Command | Purpose |
 |---|---|
-| `octk init [--force]` | Idempotently scaffold `AGENTS.md`, `.toolkit/`, `.opencode/agents`, and `opencode.json` |
-| `octk mcp-config` | Print the `opencode.json` MCP & permissions snippet (V2 syntax) |
-| `octk models` | List the 4 octk agents (`plan`, `build`, `explore`, `verifier`) and their model/effort |
-| `octk set-model <agent> <model>` | Update an agent's assigned LLM model |
-| `octk set-effort <agent> <level>` | Update an agent's reasoning effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
-| `octk task start <task> --mode ... --model ...` | Open a tracked task run in `.toolkit/metrics.json` |
-| `octk task end --status ... --tokens-in N --tokens-cached N ...` | Close a task run with verification check and cache-read results |
-| `octk approve "<task>"` | Mint a one-time, TTY-gated human approval token |
-| `octk report [--json]` | Build the telemetry comparison report in Markdown or JSON |
-| `octk doctor [--json]` | Check prefix-cache stability (`AGENTS.md`) and approval-gate deny rules |
-| `octk handoff [--out .toolkit/handoff.md]` | Write a deterministic resume snapshot (roadmap, git, runtime, approvals) |
-| `octk standing add <label> --tokens-in N` | Record an exact Turn-1 input token count (bare vs. octk) |
-| `octk bench tools [--out PATH] [--json]` | Run pruner benchmarks and signal-retention checks on generated fixtures |
+| `octk init [--force]` | Scaffold `AGENTS.md`, `.toolkit/`, agents, `opencode.json` |
+| `octk mcp-config` | Print the MCP + permissions snippet |
+| `octk capabilities {list,show,discover,verify,select,register}` | Registry and selector |
+| `octk providers` | Ponytail / Graphify status (detect only) |
+| `octk task start` / `task end` | Task bookkeeping and acceptance check |
+| `octk approve "<task>"` | Mint a TTY-gated, spend-once approval |
+| `octk report [--json]` | Markdown/JSON telemetry report |
+| `octk doctor` | Prefix-cache and gate health |
+| `octk handoff` | Deterministic resume snapshot |
+| `octk standing add` | Record an exact turn-1 token cost |
+| `octk audit` | Graph-freshness + audit workflow |
+| `octk roadmap set` | Gate-enforced roadmap status |
+| `octk bench tools` | Pruner + signal-retention benchmark |
+| `python -m benchmarks.driver --stage 1 --dry-run` | Inspect the factorial queue (dev-only) |
 
-**OpenCode Slash Commands:** Run `/ideate` inside OpenCode to launch the interactive specification architect, stress-test blueprints, and populate `.toolkit/specs/`.
+## Status
 
-## The Nine MCP Tools
+- **v2 core:** registry, selector, adapters, providers, diagnostics, telemetry — done.
+- **Stage 1:** executed; correctness parity, no efficiency signal. Stage 2 blocked.
+- **Next:** a large-context task (~20 specs/skills) that can actually test the
+  pantry thesis; then the Terminal-Bench 2.0 adapter; then Phase B security.
+- **Not shipped:** PyPI release, second harness (Codex), MCP reduction below 8.
 
-| Tool Name | Reads / Writes | What It Returns | Telemetry Kind |
-|---|---|---|---|
-| `*_glance_pantry` | `.toolkit/index.md`, spec/skill names | 1-screen inventory + measured raw/pruned byte delta | `counterfactual` |
-| `*_equip_spec` | `.toolkit/specs/<name>.md` | Full specification text on demand | `load` |
-| `*_equip_skill` | `.toolkit/skills/<name>.md` | Supplemental project skill text on demand | `load` |
-| `*_update_roadmap` | `.toolkit/specs/roadmap.md` | Gate-enforced `[x]` / `[~]` / `[ ]` status update | `measured` |
-| `*_run_audit_workflow` | Dependency graph timestamps | Freshness check + `graphify` / `ponytail-review` advice or run | `measured` |
-| `*_check_spec_drift` | Live `.py` AST vs. `architecture.md` | Deterministic 0-token Python AST spec-drift report | `measured` |
-| `*_debug_inspect` | Allowlisted `pytest` / `python` run | Pruned failure traceback (project frames + `locals()` signals) | `measured` |
-| `*_browser_inspect` | `http` / `https` URL | Headless Chromium summary (interactive selectors + console/net errors) | `measured` |
-| `*_equip_external_mcp` | `.toolkit/config.json` external server | Lazy stdio MCP tool list/schemas or one tool result; unknown servers rejected | `load` |
+## Provenance
 
-## Configuration & Cross-Platform Support
+`octk` is built, not borrowed. Ponytail and Graphify are **external providers**:
+detected if installed, never bundled, forked, or reimplemented. Discovery never
+executes a capability; no config is mutated silently.
 
-### `.toolkit/config.json`
+## License
 
-| Key | Default | Meaning |
-|---|---|---|
-| `server_name` | `"octk"` | Prefix for every tool name rendered in `AGENTS.md` and config snippets |
-| `always_on_skills` | `[]` | Skills named in `AGENTS.md`'s 1-line always-on rule |
-| `audit_mode` | `"instruct"` | `"instruct"` advises (`/graphify .` then `/ponytail-review`); `"subprocess"` runs configured executables |
-| `graph_cmd` | `"graphify"` | Executable used for graph freshness checks in subprocess audit mode |
-| `audit_cmd` | `"ponytail-review"` | Executable used for code-reuse audits in subprocess audit mode |
-| `graph_report_paths` | `["graphify-out/GRAPH_REPORT.md", "graphify-out/graph.json"]` | File paths checked for dependency graph freshness |
-| `allowed_commands` | `["pytest", "python", "python3", "uv"]` | Subprocess execution allowlist (never uses a shell) |
-| `external_mcps` | `{}` | Lazy stdio MCP servers: `{"name": {"command": ["exe", "arg"], "description": "one line"}}` |
-| `external_mcp_timeout_s` | `30` | On-demand external MCP connect/list/call timeout |
-| `command_timeout_s` / `max_output_chars` | `120` / `2500` | Subprocess runner guardrails |
-| `approval_ttl_minutes` | `120` | Expiration window for minted human approval tokens |
-
-### Windows & Cross-Platform Notes
-
-- **Path Normalization:** The traceback pruner normalizes `/` and `\` separators and filters `.venv`, `venv`, `site-packages`, `Lib\site-packages`, `.venv\Scripts`, `node_modules`, and `__pycache__` frames as third-party noise across Windows, macOS, and Linux.
-- **Line Endings:** The roadmap parser uses `splitlines()` and preserves existing CRLF / LF line endings on write.
-- **Subprocess Safety:** Executables are resolved via `shutil.which`; subprocesses are never invoked with `shell=True`.
-
-## Development & Testing
-
-```bash
-uv sync
-uv run pytest -q                   # Run full 123-test suite (includes headless-Chromium tests)
-uv run pytest -q -m "not browser"  # Run unit & integration tests without Playwright
-uv run playwright install chromium # One-time browser setup
-```
-
-Internal design conventions live in [`docs/DESIGN.md`](docs/DESIGN.md) (module map, telemetry kinds, purity rules, atomic file writes, and honesty invariants). Generated benchmark reports are committed under `reports/`, while machine state (`.toolkit/metrics.json`, `.toolkit/approvals.json`, `graphify-out/`, `.venv/`) is gitignored.
-
-## Architectural Provenance: What I Built vs. What I Borrowed & Integrated
-
-### 1. What I Built From Scratch (Core `octk` Engineering)
-
-- **`octk-mcp` ("Chef's Pantry" FastMCP Server):** Custom Python MCP router (`glance_pantry`, `equip_spec`, `equip_skill`) that replaces Turn-1 context dumping with Just-In-Time (JIT) lazy-loading of modular specs and skills.
-- **Runtime Traceback & DOM Pruners:** Custom wrappers around `pytest`/`pdb` (`debug_inspect`) that strip third-party `site-packages`/`.venv` stack frames to expose local variables at crash points, and headless Chromium (`browser_inspect`) that prunes raw HTML DOMs down to interactive selectors, console errors, and 4xx/5xx network failures.
-- **Zero-Token AST Spec-to-Code Drift Scanner (`check_spec_drift`):** Deterministic Python `ast` parser that compares live classes, function signatures, and routes against `.toolkit/specs/architecture.md` without burning LLM tokens.
-- **Multi-Model Quota Router & Agent Scaffolding (`octk init`, `octk set-model`, `octk set-effort`):** Pre-configured primary (`plan`, `build`) and subagent (`@explore`, `@verifier`) definitions that route high-IQ design to frontier models and offload noisy test loops and codebase searches to high-quota/free models.
-- **HITL State Gate & Telemetry Engine (`metrics.py`, `octk approve`, `octk report`):** Programmatic TTY-gated token system blocking unapproved roadmap completion and automated benchmarking logger tracking wall-clock time, raw-vs-pruned byte savings, and signal retention.
-
-### 2. Methodologies & Design Patterns Adapted (With Credit)
-
-- **Elephant-Goldfish Model (EGM) by Dave Rensin / Google (`github.com/google/elephant-goldfish-model`):**
-  - *What I borrowed:* The conceptual split between a deep-context "Elephant" architect (`plan` agent in `/ideate`) and a stateless, zero-context "Goldfish" reviewer (`@verifier` subagent) to stress-test specs before writing code, plus the concept of spec-to-code drift detection and `<!-- OCTK:START -->` sentinel-block upserting.
-  - *How I adapted it for `octk`:* Replaced EGM's heavy 7-agent concurrent review swarm (which exhausts consumer request quotas) with a single zero-context `@verifier` running on unlimited/high-quota tiers and a deterministic 0-token Python `ast` drift scanner inside `octk-mcp`.
-- **MCP "Code Mode" / Progressive Disclosure Pattern:**
-  - *What I borrowed:* The concept of exposing a lightweight index tool instead of injecting dozens of heavy tool schemas and markdown files into the initial system prompt.
-
-### 3. External Tools & Plugins Orchestrated (Not Built by Me)
-
-- **OpenCode (`opencode.ai`):** The underlying CLI coding harness that mounts `octk-mcp` and executes the agents.
-- **`graphify` & `ponytail`:** External dependency-graph generator and code-reuse auditing plugin; `octk` wraps them inside `run_audit_workflow()` to automatically verify graph freshness by file timestamp before running code-reuse audits.
-- **FastMCP (`mcp` Python SDK), Playwright, & Pytest:** Underlying open-source libraries powering the MCP transport, headless browser automation, and test execution.
+MIT. See [`LICENSE`](LICENSE).

@@ -150,7 +150,9 @@ Build: setuptools ≥75. Python: **≥3.11**.
 | `browser_inspect` always exposed | Resolved | `OCTK_BROWSER=0` drops the tool (ADR-005) |
 | Adapter returns raw dicts | Resolved | Adapters emit validated `CapabilityRecord` (ADR-003) |
 | Benchmark suite incomplete (1 of 8 categories) | Resolved | All 8 fixtures implemented and verified (oracle fails before fix, passes after) |
-| No external benchmark selected | Medium | Generalisation unproven |
+| **Stage 1 shows no efficiency signal** | **High** | 80 runs, 80/80 correct; E +21.3% tokens (CI −46.7%..+0.8%) and 49.8% slower. Do not claim savings; see `BENCHMARK_RESULTS.md` |
+| Large-context case untested | High | Add a ~20-spec task before any pantry claim |
+| No external benchmark selected | Resolved | Terminal-Bench 2.0 chosen; adapter not built |
 | MCP surface 8 > target 6 | Low | Accepted; schema cost measured at 2,499 chars |
 
 ---

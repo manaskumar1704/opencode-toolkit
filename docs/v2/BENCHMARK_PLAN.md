@@ -206,6 +206,10 @@ result.
 
 ## 9. Driver
 
+Stage 1 has been executed: **80 runs, 80/80 correct, no efficiency signal**
+(E +21.3% tokens, 49.8% slower). Full numbers and the architecture-vs-
+implementation breakdown are in [`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md).
+
 `benchmarks/driver.py` runs the design above.
 
 ```bash
