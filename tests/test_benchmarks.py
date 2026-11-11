@@ -301,3 +301,41 @@ def test_each_task_has_required_files() -> None:
         assert (directory / "setup.patch").is_file(), task["name"]
         assert (directory / "oracle" / "acceptance.py").is_file(), task["name"]
         assert task["prompt"].strip(), task["name"]
+
+
+def test_check_effort_gates_only_the_agent_under_test(tmp_path: Path) -> None:
+    agents = tmp_path / ".opencode" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "build.md").write_text("---\neffort: high\n---\n", encoding="utf-8")
+    (agents / "explore.md").write_text("---\neffort: medium\n---\n", encoding="utf-8")
+
+    ok, values = check_effort(tmp_path)
+
+    assert ok is True
+    assert values == {"build": "high", "explore": "medium"}
+
+
+def test_check_effort_fails_when_build_agent_missing(tmp_path: Path) -> None:
+    agents = tmp_path / ".opencode" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "plan.md").write_text("---\neffort: high\n---\n", encoding="utf-8")
+
+    ok, values = check_effort(tmp_path)
+
+    assert ok is False
+    assert values == {"plan": "high"}
+
+
+def test_scaffold_output_satisfies_the_cohort_lock(tmp_path: Path) -> None:
+    """`octk init` must produce a tree the benchmark preflight accepts."""
+    from octk.adapters.opencode_scaffold import AGENT_NAMES, render_agent_md
+
+    agents = tmp_path / ".opencode" / "agents"
+    agents.mkdir(parents=True)
+    for name in AGENT_NAMES:
+        (agents / f"{name}.md").write_text(render_agent_md(name), encoding="utf-8")
+
+    ok, values = check_effort(tmp_path)
+
+    assert ok, values
+    assert values["build"] == "high"

@@ -81,8 +81,15 @@ def check_model_available() -> tuple[bool, str]:
     return False, f"{MODEL_ID!r} not found in opencode models"
 
 
-def check_effort(root: Path) -> tuple[bool, dict[str, str]]:
-    """Read .opencode/agents/*.md frontmatter and collect effort values."""
+def check_effort(
+    root: Path, required: tuple[str, ...] = ("build",)
+) -> tuple[bool, dict[str, str]]:
+    """Verify the agent under test runs at the locked effort.
+
+    Only the benchmark's agent (``build``) is gated. Subagents such as
+    ``explore`` legitimately run at a different effort; their values are still
+    returned so the manifest can record them.
+    """
     agents_dir = root / ".opencode" / "agents"
     if not agents_dir.is_dir():
         return False, {}
@@ -93,7 +100,8 @@ def check_effort(root: Path) -> tuple[bool, dict[str, str]]:
         values[path.stem] = match.group(1) if match else ""
     if not values:
         return False, values
-    ok = all(value == EFFORT_REQUIRED for value in values.values())
+    missing = [name for name in required if name not in values]
+    ok = not missing and all(values[name] == EFFORT_REQUIRED for name in required)
     return ok, values
 
 
@@ -138,9 +146,15 @@ def run_preflight(root: Path) -> PreflightResult:
     if not effort_ok:
         if not effort_values:
             errors.append("no agent files found; run `octk init` first")
+        elif "build" not in effort_values:
+            errors.append("no build agent found; run `octk init` first")
         else:
-            bad = {k: v for k, v in effort_values.items() if v != EFFORT_REQUIRED}
-            errors.append(f"effort must be {EFFORT_REQUIRED!r}; got {bad}")
+            bad = {
+                name: value
+                for name, value in effort_values.items()
+                if name == "build" and value != EFFORT_REQUIRED
+            }
+            errors.append(f"build agent effort must be {EFFORT_REQUIRED!r}; got {bad}")
 
     result.opencode_json_present = check_opencode_json(root)
     if not result.opencode_json_present:
