@@ -78,7 +78,9 @@ def test_oracle_leaks_ignores_names_the_agent_can_already_see() -> None:
 
 def test_oracle_leaks_detects_oracle_path() -> None:
     path = "benchmarks/tasks/simple_bug/oracle/acceptance.py"
-    assert oracle_leaks(f"cat {path}", "", path) == [f"oracle path: {path}"]
+    leaks = oracle_leaks(f"cat {path}", "", path)
+    assert f"oracle path: {path}" in leaks
+    assert any("oracle/acceptance.py" in leak for leak in leaks)
 
 
 def test_oracle_leaks_detects_cloning_the_public_repo() -> None:
@@ -99,5 +101,14 @@ def test_wrap_command_masks_the_host_repo_when_bwrap_exists(tmp_path: Path) -> N
         assert str(host / ".git") in command
         assert command[-1] == "true"
         assert str(workspace) in command
+        assert "--tmpfs" in command and "/tmp" in command
     else:
         assert command == ["true"]
+
+
+def test_oracle_leaks_detects_pytest_artifacts() -> None:
+    leaks = oracle_leaks(
+        "cat /tmp/pytest-of-user/pytest-1/test/oracle/acceptance.py", ""
+    )
+    assert any("pytest-of-" in leak for leak in leaks)
+    assert any("oracle/acceptance.py" in leak for leak in leaks)

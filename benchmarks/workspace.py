@@ -20,12 +20,11 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 from benchmarks.runner import safe_id
 
-WORKSPACE_PARENT = Path(tempfile.gettempdir()) / "octk-bench"
+WORKSPACE_PARENT = Path.home() / ".cache" / "octk-bench"
 
 # Never copy these into a workspace: VCS metadata (would link to the host),
 # the benchmark harness itself (contains the oracles), and local caches.
@@ -40,6 +39,10 @@ IGNORE = shutil.ignore_patterns(
 
 CLONE_RE = re.compile(r"git\s+clone\s+\S*opencode-toolkit", re.IGNORECASE)
 ORACLE_DEF_RE = re.compile(r"\bdef (test_\w+)")
+
+# Fragments that only appear if the agent reached an oracle or a leftover
+# pytest fixture directory. The visible task files do not contain them.
+LEAK_FRAGMENTS = ("pytest-of-", "oracle/acceptance.py", "/oracle/")
 
 
 def create_workspace(
@@ -113,7 +116,16 @@ def wrap_command(
     for masked in (host_repo / "benchmarks", host_repo / ".git"):
         if masked.exists():
             command += ["--tmpfs", str(masked)]
-    command += ["--bind", "/tmp", "/tmp"]
+    # The workspace lives outside /tmp on purpose: host temp dirs contain
+    # pytest artifacts (including oracle copies), so /tmp is replaced with an
+    # empty private tmpfs. The workspace itself is the only writable mount.
+    command += [
+        "--bind",
+        str(workspace),
+        str(workspace),
+        "--tmpfs",
+        "/tmp",
+    ]
     for relative in (".local/share/opencode", ".cache", ".config/opencode"):
         path = home / relative
         if path.exists():
@@ -140,6 +152,9 @@ def oracle_leaks(
             leaks.append(f"oracle test name: {name}")
     if oracle_path and oracle_path in transcript_text:
         leaks.append(f"oracle path: {oracle_path}")
+    for fragment in LEAK_FRAGMENTS:
+        if fragment in transcript_text:
+            leaks.append(f"oracle path fragment: {fragment}")
     if CLONE_RE.search(transcript_text):
         leaks.append("git clone of the benchmark repository")
     return sorted(set(leaks))

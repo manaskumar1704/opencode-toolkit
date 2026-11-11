@@ -2,7 +2,9 @@
 
 Rules, in order:
 
-1. Call octk_glance_pantry before scanning the repo.
+1. On an unfamiliar repository, or when the task spans more than one file,
+   call octk_glance_pantry before scanning. For a single named file with a
+   self-contained fix, skip it (see Fast-Path, rule 7).
 2. Lazy-load: octk_equip_spec / octk_equip_skill only when the
    current task needs them; never preload anything.
 3. Always-on skills: none. Every other skill loads on demand via

@@ -235,7 +235,14 @@ def test_extract_token_usage_returns_none_when_absent() -> None:
 # -- gate ------------------------------------------------------------------
 
 
-def _outcome(arm: str, task: str, passed: bool, tokens: int | None, duration: float) -> RunOutcome:
+def _outcome(
+    arm: str,
+    task: str,
+    passed: bool,
+    tokens: int | None,
+    duration: float,
+    rep: int = 1,
+) -> RunOutcome:
     manifest = RunManifest(
         arm=arm,
         task=task,
@@ -244,54 +251,103 @@ def _outcome(arm: str, task: str, passed: bool, tokens: int | None, duration: fl
         duration_s=duration,
         correctness={"acceptance_passed": passed},
     )
-    spec = RunSpec(arm, task, "simple isolated bug", "/tmp/x", 1, 1, 1)
+    spec = RunSpec(arm, task, "simple isolated bug", "/tmp/x", rep, 1, 1)
     return RunOutcome(spec, manifest, "/tmp/m.json", passed)
 
 
-def test_stage1_gate_proceeds_on_efficiency_signal() -> None:
-    outcomes = [
-        _outcome("A", "t", True, 1000, 100.0),
-        _outcome("E", "t", True, 700, 90.0),
-    ]
-    gate = evaluate_gate(1, outcomes)
+def _pairs(
+    n: int = 5,
+    *,
+    a_tokens: int = 1000,
+    e_tokens: int = 700,
+    a_duration: float = 100.0,
+    e_duration: float = 90.0,
+    a_pass: bool = True,
+    e_pass: bool = True,
+) -> list[RunOutcome]:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, n + 1):
+        outcomes.append(_outcome("A", "t", a_pass, a_tokens, a_duration, rep))
+        outcomes.append(_outcome("E", "t", e_pass, e_tokens, e_duration, rep))
+    return outcomes
+
+
+def test_stage1_gate_proceeds_on_a_real_effect() -> None:
+    gate = evaluate_gate(1, _pairs())
     assert gate.proceed is True
     assert gate.blocking is False
-    assert "fewer input tokens" in gate.reason
+    assert "30.0%" in gate.reason
+    assert gate.effect["E"]["tokens"]["significant"] is True
 
 
 def test_stage1_gate_blocks_on_correctness_regression() -> None:
-    outcomes = [
-        _outcome("A", "t", True, 1000, 100.0),
-        _outcome("E", "t", False, 500, 50.0),
-    ]
-    gate = evaluate_gate(1, outcomes)
+    gate = evaluate_gate(1, _pairs(e_pass=False))
     assert gate.proceed is False
     assert gate.blocking is True
     assert "correctness regression" in gate.reason
 
 
 def test_stage1_gate_refuses_without_signal() -> None:
-    outcomes = [
-        _outcome("A", "t", True, 1000, 100.0),
-        _outcome("E", "t", True, 1000, 100.0),
-    ]
-    gate = evaluate_gate(1, outcomes)
+    gate = evaluate_gate(1, _pairs(e_tokens=1000, e_duration=100.0))
     assert gate.proceed is False
     assert gate.blocking is False
     assert "no measurable efficiency signal" in gate.reason
 
 
-def test_stage2_gate_requires_external_effect() -> None:
-    outcomes = [
-        _outcome("A", "t", True, 1000, 100.0),
-        _outcome("B", "t", True, 1000, 100.0),
-        _outcome("C", "t", True, 1000, 100.0),
-        _outcome("E", "t", True, 900, 95.0),
-    ]
+def test_stage1_gate_ignores_noise_that_crosses_zero() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep, e_tokens in enumerate([1100, 900, 1050, 950, 1000], start=1):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, e_tokens, 100.0, rep))
+    gate = evaluate_gate(1, outcomes)
+    assert gate.proceed is False
+    assert "no measurable efficiency signal" in gate.reason
+    assert gate.effect["E"]["tokens"]["significant"] is False
+
+
+def test_stage1_gate_rejects_a_tiny_consistent_effect() -> None:
+    # 2% fewer tokens is consistent but below the 5% threshold.
+    gate = evaluate_gate(1, _pairs(e_tokens=980, e_duration=100.0))
+    assert gate.proceed is False
+    assert "no measurable efficiency signal" in gate.reason
+
+
+def test_stage1_gate_requires_at_least_five_pairs() -> None:
+    gate = evaluate_gate(1, _pairs(n=2))
+    assert gate.proceed is False
+    assert "insufficient paired data" in gate.reason
+
+
+def test_stage1_gate_accepts_a_duration_effect_above_ten_percent() -> None:
+    gate = evaluate_gate(
+        1, _pairs(e_tokens=1000, e_duration=80.0)
+    )
+    assert gate.proceed is True
+    assert "duration" in gate.reason
+
+
+def test_stage2_gate_requires_an_external_effect() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("B", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("C", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, 500, 50.0, rep))
     gate = evaluate_gate(2, outcomes)
     assert gate.proceed is False
-    assert gate.blocking is False
     assert "no independent effect" in gate.reason
+
+
+def test_stage2_gate_proceeds_when_an_external_tool_helps() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("B", "t", True, 700, 100.0, rep))
+        outcomes.append(_outcome("C", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, 1000, 100.0, rep))
+    gate = evaluate_gate(2, outcomes)
+    assert gate.proceed is True
+    assert "arm B" in gate.reason
 
 
 def test_stage3_gate_always_proceeds() -> None:

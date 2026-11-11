@@ -51,6 +51,14 @@ DEFAULT_REPS = 5
 DEFAULT_SEED = 20261109
 DEFAULT_TIMEOUT_S = 1800
 
+# Gate thresholds. A difference must clear both a confidence test and a minimum
+# effect size; otherwise it is noise. v1 (+908 turn-1 tokens) and v2 Stage 1
+# (0.1s "win") both showed what happens without this.
+MIN_TOKEN_REDUCTION = 0.05
+MIN_DURATION_REDUCTION = 0.10
+MIN_PAIRS = 5
+BOOTSTRAP_SAMPLES = 5000
+
 # Handoff D3 staged gates. Stage N is cumulative: stage 2 re-runs stage 1 arms.
 STAGE_ARMS: dict[int, tuple[str, ...]] = {
     1: ("A", "E"),
@@ -665,6 +673,7 @@ class GateDecision:
     blocking: bool
     reason: str
     per_task: dict[str, dict[str, float]]
+    effect: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -684,32 +693,85 @@ def _pass_rates(outcomes: Sequence[RunOutcome]) -> dict[str, dict[str, float]]:
     }
 
 
-def _median_tokens(outcomes: Sequence[RunOutcome], arm: str) -> float | None:
-    values = [
-        outcome.manifest.tokens_input
-        for outcome in outcomes
-        if outcome.spec.arm == arm and outcome.manifest.tokens_input is not None
-    ]
-    return statistics.median(values) if values else None
+def _bootstrap_ci(diffs: Sequence[float], seed: int) -> tuple[float, float]:
+    """95% percentile bootstrap CI for the mean of paired differences."""
+    rng = random.Random(seed)
+    n = len(diffs)
+    means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(BOOTSTRAP_SAMPLES))
+    low = means[int(0.025 * BOOTSTRAP_SAMPLES)]
+    high = means[int(0.975 * BOOTSTRAP_SAMPLES) - 1]
+    return low, high
 
 
-def _median_duration(outcomes: Sequence[RunOutcome], arm: str) -> float | None:
-    values = [
-        outcome.manifest.duration_s
-        for outcome in outcomes
-        if outcome.spec.arm == arm and outcome.manifest.duration_s is not None
-    ]
-    return statistics.median(values) if values else None
+def _paired_effect(
+    outcomes: Sequence[RunOutcome],
+    baseline: str,
+    candidate: str,
+    field_name: str,
+    seed: int,
+) -> dict[str, Any] | None:
+    """Paired (task, rep) difference for one metric, with a bootstrap CI.
+
+    Returns ``None`` when there are fewer than ``MIN_PAIRS`` usable pairs, so a
+    thin sample can never be called a signal.
+    """
+    index = {(o.spec.task, o.spec.rep, o.spec.arm): o for o in outcomes}
+    pairs: list[tuple[float, float]] = []
+    for (task, rep, arm), outcome in index.items():
+        if arm != candidate:
+            continue
+        base = index.get((task, rep, baseline))
+        if base is None:
+            continue
+        a = getattr(base.manifest, field_name)
+        b = getattr(outcome.manifest, field_name)
+        if a is None or b is None:
+            continue
+        pairs.append((float(a), float(b)))
+
+    if len(pairs) < MIN_PAIRS:
+        return None
+
+    diffs = [b - a for a, b in pairs]
+    mean_base = statistics.mean(a for a, _ in pairs)
+    mean_diff = statistics.mean(diffs)
+    low, high = _bootstrap_ci(diffs, seed)
+    reduction = (-mean_diff / mean_base) if mean_base else 0.0
+    reduction_low = (-high / mean_base) if mean_base else 0.0
+    reduction_high = (-low / mean_base) if mean_base else 0.0
+    return {
+        "n": len(pairs),
+        "baseline_mean": mean_base,
+        "mean_difference": mean_diff,
+        "reduction": reduction,
+        "reduction_ci_low": reduction_low,
+        "reduction_ci_high": reduction_high,
+        "ci_low": low,
+        "ci_high": high,
+        "significant": high < 0,
+    }
 
 
-def evaluate_gate(stage: int, outcomes: Sequence[RunOutcome]) -> GateDecision:
-    """Apply the handoff D3 gate for one stage.
+def _describe(effect: dict[str, Any] | None) -> str:
+    if effect is None:
+        return "insufficient paired data"
+    return (
+        f"{effect['reduction'] * 100:+.1f}% "
+        f"(95% CI {effect['reduction_ci_low'] * 100:+.1f}%.."
+        f"{effect['reduction_ci_high'] * 100:+.1f}%, n={effect['n']})"
+    )
 
-    Stage 1: proceed only when OCTK shows no correctness regression AND a
-    measurable efficiency signal. A regression is blocking (stop and fix).
-    Stage 2: same correctness rule against the baseline, and at least one
-    external tool must show an independent effect worth testing interactions.
-    Stage 3: terminal stage; nothing to gate.
+
+def evaluate_gate(
+    stage: int,
+    outcomes: Sequence[RunOutcome],
+    seed: int = DEFAULT_SEED,
+) -> GateDecision:
+    """Apply the handoff D3 gate with a real effect-size test.
+
+    A difference counts only when the paired bootstrap CI excludes zero *and*
+    clears the minimum effect size. Stage 1 of both v1 and v2 showed why: a
+    0.1s median difference was being accepted as a "measurable signal".
     """
     if stage not in STAGE_ARMS:
         raise ValueError(f"unknown stage: {stage!r}")
@@ -729,6 +791,7 @@ def evaluate_gate(stage: int, outcomes: Sequence[RunOutcome]) -> GateDecision:
         if stage == 1
         else [arm for arm in candidates if not arm_flags(arm)["octk"]]
     )
+
     regressions: list[str] = []
     for task, arms in sorted(per_task.items()):
         baseline = arms.get(BASELINE_ARM)
@@ -749,48 +812,70 @@ def evaluate_gate(stage: int, outcomes: Sequence[RunOutcome]) -> GateDecision:
             per_task,
         )
 
-    baseline_tokens = _median_tokens(outcomes, BASELINE_ARM)
-    baseline_duration = _median_duration(outcomes, BASELINE_ARM)
-    signals: list[str] = []
+    effect: dict[str, Any] = {}
+    passing: list[str] = []
     for arm in signal_arms:
-        tokens = _median_tokens(outcomes, arm)
-        duration = _median_duration(outcomes, arm)
-        if tokens is not None and baseline_tokens is not None and tokens < baseline_tokens:
-            signals.append(f"arm {arm}: {baseline_tokens - tokens:.0f} fewer input tokens")
-        if (
-            duration is not None
-            and baseline_duration is not None
-            and duration < baseline_duration
-        ):
-            signals.append(f"arm {arm}: {baseline_duration - duration:.1f}s faster")
+        tokens = _paired_effect(outcomes, BASELINE_ARM, arm, "tokens_input", seed)
+        duration = _paired_effect(outcomes, BASELINE_ARM, arm, "duration_s", seed)
+        effect[arm] = {"tokens": tokens, "duration": duration}
+        token_signal = bool(
+            tokens
+            and tokens["significant"]
+            and tokens["reduction"] >= MIN_TOKEN_REDUCTION
+        )
+        duration_signal = bool(
+            duration
+            and duration["significant"]
+            and duration["reduction"] >= MIN_DURATION_REDUCTION
+        )
+        if token_signal or duration_signal:
+            parts = []
+            if token_signal:
+                parts.append("tokens " + _describe(tokens))
+            if duration_signal:
+                parts.append("duration " + _describe(duration))
+            passing.append(f"arm {arm}: " + "; ".join(parts))
 
     if stage == 1:
-        if not signals:
+        if not passing:
+            detail = "; ".join(
+                f"arm {arm} tokens {_describe(effect[arm]['tokens'])}, "
+                f"duration {_describe(effect[arm]['duration'])}"
+                for arm in signal_arms
+            )
             return GateDecision(
                 1,
                 False,
                 False,
-                "no measurable efficiency signal in Stage 1; do not spend on later stages",
+                "no measurable efficiency signal in Stage 1: " + detail,
                 per_task,
+                effect,
             )
         return GateDecision(
-            1, True, False, "correctness non-negative; " + "; ".join(signals), per_task
+            1,
+            True,
+            False,
+            "correctness non-negative; " + "; ".join(passing),
+            per_task,
+            effect,
         )
 
-    if not signals:
+    if not passing:
         return GateDecision(
             2,
             False,
             False,
             "external tools show no independent effect; interactions not worth testing",
             per_task,
+            effect,
         )
     return GateDecision(
         2,
         True,
         False,
-        "external tools show an independent effect; " + "; ".join(signals),
+        "external tools show an independent effect; " + "; ".join(passing),
         per_task,
+        effect,
     )
 
 
@@ -907,7 +992,7 @@ def run_stage(
         if progress is not None:
             progress(outcome, index, len(schedule))
 
-    gate = evaluate_gate(stage, outcomes)
+    gate = evaluate_gate(stage, outcomes, seed=seed)
     cost = cost_projection(outcomes, reps=reps, n_tasks=len(task_list))
     report = StageReport(
         stage=stage,
@@ -985,6 +1070,27 @@ def render_stage_report(report: StageReport) -> str:
     for task, row in sorted(report.gate.per_task.items()):
         cells = [f"{row[arm]:.2f}" if arm in row else "-" for arm in arms]
         lines.append(f"| {task} | " + " | ".join(cells) + " |")
+    if report.gate.effect:
+        lines += [
+            "",
+            "## Effect (paired by task and rep)",
+            "",
+            "| arm | metric | n | change | 95% CI | significant |",
+            "|---|---|---:|---:|---|---|",
+        ]
+        for arm in sorted(report.gate.effect):
+            for metric in ("tokens", "duration"):
+                effect = report.gate.effect[arm].get(metric)
+                if not effect:
+                    lines.append(f"| {arm} | {metric} | - | insufficient data | - | no |")
+                    continue
+                lines.append(
+                    f"| {arm} | {metric} | {effect['n']} | "
+                    f"{effect['reduction'] * 100:+.1f}% | "
+                    f"{effect['reduction_ci_low'] * 100:+.1f}%.."
+                    f"{effect['reduction_ci_high'] * 100:+.1f}% | "
+                    f"{'yes' if effect['significant'] else 'no'} |"
+                )
     lines += ["", "## Cost", "", f"- Status: **{report.cost.get('status')}**"]
     for key in ("mean_tokens_input", "mean_duration_s"):
         if key in report.cost:
