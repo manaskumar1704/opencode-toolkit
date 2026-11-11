@@ -20,8 +20,8 @@ Rules encoded here:
 from __future__ import annotations
 
 import json
+import os
 import random
-import re
 import shutil
 import statistics
 import subprocess
@@ -34,12 +34,16 @@ from typing import Any
 
 from benchmarks.manifest import RunManifest, hash_text, now_iso, save_manifest
 from benchmarks.preflight import EFFORT_REQUIRED, MODEL_ID, run_preflight
-from benchmarks.runner import (
-    RESULTS_DIR,
-    create_worktree,
-    list_tasks,
-    remove_worktree,
+from benchmarks.runner import RESULTS_DIR, list_tasks, safe_id
+from benchmarks.workspace import (
+    bwrap_available,
+    create_workspace,
+    oracle_leaks,
+    remove_workspace,
+    wrap_command,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 ARMS = ("A", "B", "C", "D", "E", "F", "G", "H")
 MIN_REPS = 5
@@ -59,16 +63,6 @@ BASELINE_ARM = "A"
 
 
 # -- arms ------------------------------------------------------------------
-
-
-def safe_id(value: str) -> str:
-    """Reduce a task/arm name to one filesystem-safe path segment.
-
-    Task metadata is repo-controlled, but a benchmark driver that joins it into
-    paths must not trust it: ``../../etc`` is one bad fixture away.
-    """
-    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("._")
-    return cleaned or "run"
 
 
 def arm_flags(arm: str) -> dict[str, bool]:
@@ -184,13 +178,10 @@ def apply_arm(worktree: Path, arm: str) -> dict[str, Any]:
     servers = _mcp_servers(config)
 
     if flags["octk"]:
-        if "octk" not in servers:
-            servers["octk"] = {
-                "type": "local",
-                "command": ["octk-mcp"],
-                "codemode": False,
-            }
-            changed.append("enabled octk MCP server")
+        desired = {"type": "local", "command": ["octk-mcp"], "codemode": False}
+        if servers.get("octk") != desired:
+            servers["octk"] = desired
+            changed.append("enabled octk MCP server (rewrote command)")
     elif "octk" in servers:
         servers.pop("octk")
         changed.append("disabled octk MCP server")
@@ -308,20 +299,29 @@ def opencode_executor(
     prompt: str,
     timeout_s: int = DEFAULT_TIMEOUT_S,
 ) -> AgentResult:
-    """Run the real agent in the worktree. Confined to a disposable checkout."""
-    command = [
-        "opencode",
-        "run",
-        "--model",
-        MODEL_ID,
-        "--agent",
-        "build",
-        "--format",
-        "json",
-        "--auto",
-        prompt,
-    ]
+    """Run the real agent in the workspace, with the host repo masked."""
+    command = wrap_command(
+        [
+            "opencode",
+            "--standalone",
+            "run",
+            "--model",
+            MODEL_ID,
+            "--agent",
+            "build",
+            "--format",
+            "json",
+            "--auto",
+            prompt,
+        ],
+        worktree,
+        REPO_ROOT,
+    )
     started = time.monotonic()
+    env = dict(os.environ)
+    venv_bin = REPO_ROOT / ".venv" / "bin"
+    if venv_bin.is_dir():
+        env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
     try:
         proc = subprocess.run(
             command,
@@ -331,6 +331,7 @@ def opencode_executor(
             errors="replace",
             timeout=timeout_s,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or ""
@@ -492,8 +493,8 @@ def execute_run(
         prompt_error = None
 
     try:
-        worktree = create_worktree(repo, run_id)
-    except RuntimeError as exc:
+        worktree = create_workspace(repo, run_id)
+    except (OSError, RuntimeError) as exc:
         events = [
             {"event": "start", "spec": spec.to_dict(), "at": now_iso()},
             {"event": "error", "error": str(exc), "at": now_iso()},
@@ -570,6 +571,23 @@ def execute_run(
         acceptance_text = (
             acceptance_path.read_text(encoding="utf-8") if acceptance_path.is_file() else ""
         )
+        try:
+            oracle_rel = str(acceptance_path.relative_to(REPO_ROOT))
+        except ValueError:
+            oracle_rel = str(acceptance_path)
+        setup_patch = task_dir / "setup.patch"
+        visible_text = (
+            setup_patch.read_text(encoding="utf-8") if setup_patch.is_file() else ""
+        )
+        leaks = oracle_leaks(
+            (agent.stdout or "") + (agent.stderr or ""),
+            acceptance_text,
+            oracle_rel,
+            visible_text,
+        )
+        valid = not leaks
+        if leaks:
+            passed = False
         providers = _detect_providers(worktree)
 
         manifest = RunManifest(
@@ -593,6 +611,8 @@ def execute_run(
             graphify_available=providers["graphify_available"],
             correctness={
                 "acceptance_passed": passed,
+                "valid": valid,
+                "oracle_leaked": leaks,
                 "oracle_exit_code": 0 if passed else 1,
                 "agent_exit_code": agent.exit_code,
                 "oracle_output": oracle_output[-4000:],
@@ -609,6 +629,7 @@ def execute_run(
             wall_clock_s=agent.duration_s,
             environment_manifest={
                 "worktree": str(worktree),
+                "sandbox": "bwrap" if bwrap_available() else "none",
                 "arm_flags": arm_flags(spec.arm),
                 "python": python_executable or sys.executable,
                 "model_id": MODEL_ID,
@@ -618,7 +639,7 @@ def execute_run(
         save_manifest(manifest_path, manifest)
     finally:
         if not keep_worktree:
-            remove_worktree(repo, worktree)
+            remove_workspace(worktree)
 
     if error is not None and not transcript_path.exists():
         _write_transcript(
@@ -652,6 +673,8 @@ class GateDecision:
 def _pass_rates(outcomes: Sequence[RunOutcome]) -> dict[str, dict[str, float]]:
     totals: dict[str, dict[str, list[bool]]] = {}
     for outcome in outcomes:
+        if outcome.manifest.correctness.get("valid") is False:
+            continue
         totals.setdefault(outcome.spec.task, {}).setdefault(outcome.spec.arm, []).append(
             outcome.passed
         )
@@ -696,7 +719,7 @@ def evaluate_gate(stage: int, outcomes: Sequence[RunOutcome]) -> GateDecision:
         return GateDecision(3, True, False, "final stage; no further gate", per_task)
 
     if not per_task:
-        return GateDecision(stage, False, False, "no runs recorded", per_task)
+        return GateDecision(stage, False, False, "no valid runs recorded", per_task)
 
     candidates = [arm for arm in stage_arms(stage) if arm != BASELINE_ARM]
     # Stage 2 asks whether the *external* tools add an independent effect;
@@ -828,6 +851,11 @@ class StageReport:
             "stage": self.stage,
             "runs": len(self.outcomes),
             "passed": sum(1 for o in self.outcomes if o.passed),
+            "invalid": sum(
+                1
+                for o in self.outcomes
+                if o.manifest.correctness.get("valid") is False
+            ),
             "gate": self.gate.to_dict(),
             "cost": self.cost,
             "results_dir": self.results_dir,

@@ -75,6 +75,9 @@ It exits non-zero on any HIGH finding, so CI fails closed.
 | S-09 | Low | The approval gate is policy-enforced (OpenCode deny rules), not kernel-enforced | Accepted — document the residual risk |
 | S-10 | Low | CI runs no dependency vulnerability check | Open — Phase B |
 | S-11 | Info | No `shell=True`, `os.system`, `eval`, `exec`, `pickle`, or unsafe `yaml.load` anywhere in `octk/` | Verified |
+| S-12 | High | Git worktrees are **not** isolation: they share `.git`, so OpenCode resolved the host project, loaded the host MCP config (arm A still had `glance_pantry`), and the agent read `benchmarks/tasks/*/oracle/acceptance.py` and edited the host repo | **Fixed** — standalone workspace copy, `benchmarks/` excluded, bwrap masks the host `benchmarks/` and `.git` |
+| S-13 | Medium | The shared OpenCode background service stays bound to the host project, so a run's arm config (MCP on/off) was not applied | **Fixed** — `opencode --standalone` (flag before the subcommand) |
+| S-14 | Medium | A public repository can be cloned from inside a run, exposing the oracles | **Detected** — `oracle_leaks()` marks the run invalid; network isolation is Phase C |
 
 ### Residual risk (must be stated, not hidden)
 
@@ -91,6 +94,8 @@ It exits non-zero on any HIGH finding, so CI fails closed.
 
 - [x] Build the static scanner and wire it into CI.
 - [x] Fix S-01, S-02, S-03, S-04 with regression tests.
+- [x] Fix S-12 and S-13 after the smoke test exposed host-project leakage;
+      add S-14 detection.
 - [x] Record residual risk in this document.
 - [x] Add `tests/test_security.py` so fixes cannot silently regress.
 

@@ -1,12 +1,14 @@
 """Benchmark runner: worktree isolation and cohort orchestration.
 
-Each run gets its own git worktree. The runner never modifies the source
-repository. See handoff D3 (factorial) and D5 (controls).
+Legacy helper: the driver now uses ``benchmarks.workspace`` instead, because a
+linked worktree shares ``.git`` and OpenCode resolves the project to the host.
+Kept for compatibility with existing tests. See handoff D3 and D5.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,6 +24,12 @@ TASKS_DIR = REPO_ROOT / "benchmarks" / "tasks"
 ARMS = ("A", "B", "C", "D", "E", "F", "G", "H")
 
 
+def safe_id(value: str) -> str:
+    """Reduce a task/arm name to one filesystem-safe path segment."""
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("._")
+    return cleaned or "run"
+
+
 def _git(repo: Path, *args: str, check: bool = False) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args], cwd=repo, capture_output=True, text=True, check=check
@@ -33,8 +41,7 @@ def create_worktree(repo: Path, run_id: str, base_ref: str = "HEAD") -> Path:
     parent = Path(tempfile.gettempdir()) / "octk-bench"
     parent.mkdir(parents=True, exist_ok=True)
     # Defence in depth: never let a caller-supplied id escape the parent dir.
-    safe = run_id.replace("\\", "_").replace("/", "_").strip("._") or "run"
-    target = parent / safe
+    target = parent / safe_id(run_id)
     if target.exists():
         remove_worktree(repo, target)
     proc = _git(repo, "worktree", "add", "--detach", str(target), base_ref)

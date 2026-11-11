@@ -96,7 +96,18 @@ tune OCTK.
 
 ## 5. Controls and isolation
 
-- One git worktree per run (`benchmarks/runner.create_worktree`).
+- One standalone workspace copy per run (`benchmarks/workspace.py`). A linked
+  git worktree is not isolation: it shares `.git`, so OpenCode resolves the
+  host project and the agent can walk back to it.
+- The copy excludes `benchmarks/`, so the hidden oracles are not in the
+  workspace, and it gets its own git history for `git apply` / `git diff`.
+- `bwrap` masks the host `benchmarks/` and `.git` (oracle + history) and makes
+  the host tree read-only. Recorded as `environment_manifest.sandbox`.
+- `opencode --standalone` per run, so the shared background service (bound to
+  the host project) cannot supply the wrong arm config.
+- `oracle_leaks()` scans the transcript for unique oracle test names, the
+  oracle path, and a clone of the public repository; a leaked run is marked
+  `correctness.valid = false` and excluded from pass rates.
 - Same base commit and clean worktree.
 - Same prompt and acceptance tests across arms.
 - Same OpenCode version, model, provider, permissions, environment.

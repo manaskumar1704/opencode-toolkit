@@ -142,6 +142,8 @@ the durable record.
 - [x] All 8 task fixtures (D4 categories 1–8).
 - [x] Factorial driver with staged gates and stop rule (`benchmarks/driver.py`).
 - [x] Randomised run order, ≥5 reps, transcript capture.
+- [x] Isolation repaired: standalone workspace, bwrap host mask, oracle
+      exclusion, `--standalone` server, leak detection (S-12/S-13).
 - [ ] Execute Stage 1 (A, E) against the real cohort.
 
 ### R-3 External benchmark ✅ (selected)

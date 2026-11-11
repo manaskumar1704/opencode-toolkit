@@ -126,6 +126,29 @@ def test_apply_arm_enables_octk_server(tmp_path: Path) -> None:
     assert config["mcp"]["servers"]["octk"]["command"] == ["octk-mcp"]
 
 
+def test_apply_arm_rewrites_an_existing_octk_command(tmp_path: Path) -> None:
+    (tmp_path / "opencode.json").write_text(
+        json.dumps(
+            {
+                "mcp": {
+                    "servers": {
+                        "octk": {
+                            "type": "local",
+                            "command": ["C:\\Users\\Lenovo\\octk-mcp.EXE"],
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    apply_arm(tmp_path, "E")
+
+    config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+    assert config["mcp"]["servers"]["octk"]["command"] == ["octk-mcp"]
+
+
 def test_apply_arm_removes_ponytail_skill(tmp_path: Path) -> None:
     skill = tmp_path / ".opencode" / "skills" / "ponytail"
     skill.mkdir(parents=True)
@@ -279,7 +302,7 @@ def test_stage3_gate_always_proceeds() -> None:
 def test_gate_with_no_runs_does_not_proceed() -> None:
     gate = evaluate_gate(1, [])
     assert gate.proceed is False
-    assert "no runs" in gate.reason
+    assert "no valid runs" in gate.reason
 
 
 # -- cost honesty ----------------------------------------------------------
