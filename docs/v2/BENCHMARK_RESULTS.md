@@ -26,7 +26,8 @@ smoothed over — see §5.
 |---|---|
 | **Correctness** | **112 / 112 valid runs correct.** No task regressed. Arm A 56/56, arm E 56/56 |
 | **Large-context selection** (`spec_selection`) | **E uses 38.5% fewer input tokens** (95% CI +4.5%..+82.4%, n=20) and is **73.3% faster** (CI +0.5%..+187.0%, n=20) |
-| **Worst case** | A peaked at **37,203 tokens / 286s**. No E run exceeded **8,598 tokens / 11.4s** |
+| **Worst case, large-context block** | A peaked at **37,203 tokens / 286s**. No E run exceeded **8,598 tokens / 11.4s** |
+| **Worst case, core block** | Both arms have heavy tails. E's worst run is **89,610 tokens / 543s**; A's largest is 36,488 tokens (max duration 288.8s, a different run). That single E run carries its mean |
 | **Small-edit block** (8 core tasks) | **No measurable signal.** Tokens −13.1% (CI −71.1%..+30.4%), duration −29.4% (CI −161.7%..+61.2%), n=32 paired |
 | **Gate** | Block 1a: **proceed** (CI excludes zero, clears threshold). Block 1b: **no proceed** — no efficiency signal, but **not blocking**: zero correctness regressions |
 
@@ -103,9 +104,16 @@ agent behaviour — see §6. It must not be quoted.
 | E | tokens | 32 | −13.1% | −71.1%..+30.4% | noise |
 | E | duration | 32 | −29.4% | −161.7%..+61.2% | noise |
 
-Direction depends on the statistic: the token **mean** favours A (9,808 → 11,519,
-+17.4% for E) while the **median** favours E (6,328 → 5,690, −10.1%). With CIs
-this wide, neither is evidence. Duration medians are 6.9s (A) vs 8.4s (E).
+Direction depends on the statistic and on one run. The token **mean** favours A
+(9,808 → 11,519, +17.4% for E) while the **median** favours E (6,328 → 5,690,
+−10.1%). E's mean is carried by a single `multi_file_feature` run at **89,610
+tokens / 543s**; drop it and E's core mean is 9,287, slightly *below* A's 9,808.
+A has its own tail (max 36,488 tokens on the same task). Duration
+medians are 6.9s (A) vs 8.4s (E).
+
+With five reps per task, the mean is not a robust summary here, and neither
+direction is evidence. The honest reading is **no signal**, with both arms
+capable of an expensive run when a task goes badly.
 
 Only three tasks had the ≥5 matched pairs needed for an interval:
 
@@ -178,6 +186,10 @@ document regenerated; no verdict above depends on the missing cells.
   strong model can finish from first principles, so a context tool has little
   to save. Block 1a is the counter-example: when selection cost is real, the
   pantry wins.
+- **Single-run sensitivity.** With 5 reps per task, one pathological run moves
+  the mean: E's 89,610-token `multi_file_feature` run accounts for most of the
+  difference between the core block's mean and median. Per-task medians and the
+  powered block are more trustworthy than the pooled mean.
 - **A ninth task is a different task.** `spec_selection` is not one of the
   original eight; it was added specifically to test the pantry's intended use
   case, after the core block showed no signal.

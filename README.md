@@ -131,8 +131,8 @@ Gate: paired bootstrap, 5,000 resamples, minimum 5% token or 10% duration effect
 | Correctness | **112 / 112 valid runs passed.** No task regressed |
 | Large-context selection (n=20) | **38.5% fewer tokens** (CI +4.5%..+82.4%), **73.3% faster** (CI +0.5%..+187.0%) |
 | Small-edit tasks (n=32 paired) | **No signal.** Tokens −13.1% (CI −71.1%..+30.4%) |
-| Worst case, arm A | 37,203 tokens · 286s |
-| Worst case, arm E | **8,598 tokens · 11.4s** |
+| Worst case, large-context block | A: 37,203 tokens · 286s — E: **8,598 tokens · 11.4s** |
+| Worst case, small-edit block | E: 89,610 tokens / 543s (one run) — A: 36,488 tokens, 288.8s max duration |
 
 ### The result that clears the gate
 
@@ -156,8 +156,13 @@ expensive search, and the expensive search is what blows up the worst case.
 Eight small-repo tasks, 5 reps per arm: no measurable effect (tokens
 −13.1%, CI −71.1%..+30.4%). Four runs were excluded as provider stalls, four
 cells never ran before the free-tier quota ran out. **Reported as partial, not
-as a win.** When a task is small enough to finish from first principles, a
-context tool has little to save.
+as a win.**
+
+The mean is misleading at this sample size: one E run burned 89,610 tokens on
+`multi_file_feature`, which flips the token mean to E's disadvantage, while the
+median favours E (6,328 → 5,690). Drop that single run and the means are
+9,287 vs 9,808. When a task is small enough to finish from first principles, a
+context tool has little to save — and either arm can still have a bad run.
 
 ### What we learned
 
