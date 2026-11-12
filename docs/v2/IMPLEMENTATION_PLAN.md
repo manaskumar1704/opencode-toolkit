@@ -150,6 +150,11 @@ the durable record.
 - [x] Power the large-context task (`spec_selection`, 20 reps/arm): 40/40
       correct; **−38.5% tokens** (CI +4.5%..+82.4%) and −73.3% duration.
       First result to clear the gate.
+- [x] `spec_selection` becomes a permanent fixture of the standard suite
+      (per-task rep counts); one command runs the powered design.
+- [x] Aggregate is weighted **per task**, not per pair. Pair-weighting turned
+      the 9-task aggregate into a spurious +6.5% win; task-weighting reads
+      −11.6% (noise).
 - [ ] Resume the 4 missing core cells once provider quota resets.
 - [ ] Stage 2 proceeds on the large-context result; the core block stays neutral.
 
@@ -165,9 +170,13 @@ the durable record.
 
 - [x] Security review opened; scanner in CI; four findings fixed
       (`docs/v2/SECURITY_REVIEW.md`).
-- [ ] Phase B security fixes (S-05, S-07, S-10).
-- [ ] Licence audit.
-- [ ] Update `docs/DESIGN.md` for v2 components.
+- [x] Phase B security fixes: S-05 (check commands go through the allowlist),
+      S-07 (allowlist matches the invoked path), S-10 (`uv audit` in CI).
+      S-08 and S-09 documented. `docs/v2/APPROVAL_GATE_THREAT_MODEL.md` added.
+- [x] Licence audit (`LICENSE`).
+- [x] `docs/DESIGN.md` rewritten for v2: binding conventions, security rules,
+      benchmark rules, and the module map.
+- [ ] Version bump and PyPI/uvx publish.
 
 ---
 

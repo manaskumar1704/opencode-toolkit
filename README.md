@@ -326,8 +326,14 @@ Rules:
   large-context selection (n=20, CI excludes zero); **no signal** on the 8
   small-edit tasks. Core block is partial: 4 provider-stall exclusions, 4 cells
   awaiting quota.
+- **Security:** Phase B complete. The command allowlist matches the invoked
+  path, `--check` goes through it, `uv audit` gates CI, and the approval gate
+  has a published [threat model](docs/v2/APPROVAL_GATE_THREAT_MODEL.md).
+- **Roadmap:** live in [`.toolkit/specs/roadmap.md`](.toolkit/specs/roadmap.md).
+  Approve a line with `octk approve "<task>"`, then mark it with
+  `octk roadmap set "<task>" done`.
 - **Next:** finish the 4 missing cells, then the Terminal-Bench 2.0 adapter
-  (the arbiter for the general claim), then Phase B security.
+  (the arbiter for the general claim), then the release.
 - **Not shipped:** PyPI release, second harness (Codex), MCP reduction below 8.
 
 ## Provenance

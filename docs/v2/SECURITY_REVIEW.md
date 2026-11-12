@@ -68,12 +68,12 @@ It exits non-zero on any HIGH finding, so CI fails closed.
 | S-02 | Medium | `browser_inspect` could fetch cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`) — the classic SSRF-to-credentials path | **Fixed** — `BLOCKED_HOSTS` check before navigation |
 | S-03 | Medium | Benchmark task names were joined into worktree and transcript paths without sanitisation | **Fixed** — `safe_id()` in the driver, plus a second guard in `create_worktree` |
 | S-04 | Low | `playwright` had no upper bound | **Fixed** — `playwright>=1.49,<2` |
-| S-05 | Medium | `octk task end --check "<cmd>"` resolves the executable through `PATH` and applies no allowlist, unlike `runtime/safety.py` | Open — Phase B |
+| S-05 | Medium | `octk task end --check "<cmd>"` resolved the executable through `PATH` and applied no allowlist, unlike `runtime/safety.py` | **Fixed** — routed through `runtime/safety.run_command`; no `subprocess.run` left in `cli.py` |
 | S-06 | Medium | The benchmark executor runs `opencode run --auto`, auto-approving every action | Accepted for now — disposable worktree, `--yes` required, no network isolation yet |
-| S-07 | Low | `safety._allowed` matches the basename and stem, so any path ending in an allowed name passes | Open — Phase B |
-| S-08 | Low | `external_mcps` config executes arbitrary commands by design | Accepted — config is trusted input; document it |
-| S-09 | Low | The approval gate is policy-enforced (OpenCode deny rules), not kernel-enforced | Accepted — document the residual risk |
-| S-10 | Low | CI runs no dependency vulnerability check | Open — Phase B |
+| S-07 | Low | `safety._allowed` matched the basename and stem, so any path ending in an allowed name passed | **Fixed** — the invoked path is compared, not its name; a symlink named `pytest` in an unexpected directory is rejected |
+| S-08 | Low | `external_mcps` config executes arbitrary commands by design | **Documented** — README section, `DEFAULT_CONFIG` comment, and `octk doctor` output all state the config is trusted input |
+| S-09 | Low | The approval gate is policy-enforced (OpenCode deny rules), not kernel-enforced | **Documented** — `APPROVAL_GATE_THREAT_MODEL.md`; README links it; `octk doctor` says so |
+| S-10 | Low | CI ran no dependency vulnerability check | **Fixed** — CI runs `uv audit`; verified exit 1 on a pinned vulnerable release, exit 0 on a clean tree |
 | S-11 | Info | No `shell=True`, `os.system`, `eval`, `exec`, `pickle`, or unsafe `yaml.load` anywhere in `octk/` | Verified |
 | S-12 | High | Git worktrees are **not** isolation: they share `.git`, so OpenCode resolved the host project, loaded the host MCP config (arm A still had `glance_pantry`), and the agent read `benchmarks/tasks/*/oracle/acceptance.py` and edited the host repo | **Fixed** — standalone workspace copy, `benchmarks/` excluded, bwrap masks the host `benchmarks/` and `.git` |
 | S-13 | Medium | The shared OpenCode background service stays bound to the host project, so a run's arm config (MCP on/off) was not applied | **Fixed** — `opencode --standalone` (flag before the subcommand) |
@@ -99,15 +99,15 @@ It exits non-zero on any HIGH finding, so CI fails closed.
 - [x] Record residual risk in this document.
 - [x] Add `tests/test_security.py` so fixes cannot silently regress.
 
-### Phase B — Before the first PyPI release
+### Phase B — Before the first PyPI release ✅ (complete)
 
-| Task | Finding | Acceptance |
-|---|---|---|
-| Route `octk task end --check` through `runtime/safety.run_command` | S-05 | No direct `subprocess.run` in `cli.py`; allowlist applies |
-| Tighten `_allowed` to compare the resolved executable path, not just the basename | S-07 | A symlink named `pytest` in an unexpected directory is rejected |
-| Add `uv audit` or `pip-audit` to CI | S-10 | CI fails on a known-vulnerable dependency |
-| Document `external_mcps` as trusted input in README and config comments | S-08 | Users see the warning where they configure it |
-| Publish a threat-model note for the approval gate | S-09 | README links to it; `octk doctor` explains the check |
+| Task | Finding | Acceptance | Status |
+|---|---|---|---|
+| Route `octk task end --check` through `runtime/safety.run_command` | S-05 | No direct `subprocess.run` in `cli.py`; allowlist applies | ✅ `tests/test_cli.py` asserts a non-allowlisted command never executes |
+| Tighten `_allowed` to compare the invoked path, not just the basename | S-07 | A symlink named `pytest` in an unexpected directory is rejected | ✅ `tests/test_safety.py` covers the symlink and the look-alike file |
+| Add `uv audit` to CI | S-10 | CI fails on a known-vulnerable dependency | ✅ verified exit 1 on a pinned vulnerable release |
+| Document `external_mcps` as trusted input in README and config comments | S-08 | Users see the warning where they configure it | ✅ README, `DEFAULT_CONFIG`, `octk doctor` |
+| Publish a threat-model note for the approval gate | S-09 | README links to it; `octk doctor` explains the check | ✅ `APPROVAL_GATE_THREAT_MODEL.md` |
 
 ### Phase C — Before the Terminal-Bench 2.0 run
 
@@ -174,6 +174,6 @@ A reviewer should be able to tick every line. Each maps to a file.
 | Gate | Owner | State |
 |---|---|---|
 | Phase A complete, no HIGH findings | automated | ✅ 2026-11-11 |
-| Phase B complete | maintainer | ☐ |
+| Phase B complete | maintainer | ☑ |
 | Phase C complete | maintainer | ☐ |
 | PyPI release approved | maintainer | ☐ |

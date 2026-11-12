@@ -79,7 +79,7 @@ is a separate approval-gated decision.
 
 ---
 
-## ADR-003 — Adapters return raw dicts; normalisation happens at the registry
+## ADR-003 — Adapters emit validated capability records
 
 **Status:** Accepted (resolved 2026-11-09)
 **Resolution:** `discover_capabilities()` now returns a `DiscoveryResult` of validated `CapabilityRecord` objects; normalisation happens inside the adapter.
@@ -100,14 +100,14 @@ malformed-record skipping (`_read_index` swallows `RegistryError`) trivial.
 
 ### Consequence / fix
 
-Functionally equivalent, but the contract is violated and core now trusts
-unvalidated dicts until the caller validates. Fix: have `discover_capabilities`
-return `CapabilityRecord`, or rename the contract to `RawCapability` and
-document the validation boundary.
+Functionally equivalent, but the contract was violated and core trusted
+unvalidated dicts until the caller validated. Fixed: `discover_capabilities`
+returns a `DiscoveryResult` of validated `CapabilityRecord` objects, and a
+malformed record is skipped inside the adapter rather than at the call site.
 
 ---
 
-## ADR-004 — Discovery failure returns an empty list with no reason
+## ADR-004 — Discovery failure returns an empty list *with a reason*
 
 **Status:** Accepted (resolved 2026-11-09)
 **Resolution:** `DiscoveryResult.reason` carries the failure or partial-failure reason; `octk capabilities discover` prints it.
@@ -133,7 +133,7 @@ config". Fix: return `(records, reason)` or attach the reason to
 
 ---
 
-## ADR-005 — `browser_inspect` is not feature-flagged
+## ADR-005 — `browser_inspect` is feature-flagged, on by default
 
 **Status:** Accepted (resolved 2026-11-09)
 **Resolution:** `browser_inspect` registers only when `OCTK_BROWSER` is not `0/false/no/off`. Default remains on for backward compatibility; setting the flag drops the tool and its schema.
@@ -159,7 +159,7 @@ success.
 
 ---
 
-## ADR-006 — `check_spec_drift` does not declare Python-only coverage
+## ADR-006 — `check_spec_drift` declares Python-only coverage
 
 **Status:** Accepted (resolved 2026-11-09)
 **Resolution:** tool description now reads "Python-AST spec-to-code drift scan (*.py files only; not other languages)".
@@ -183,7 +183,7 @@ result. Fix: one-line description change to "Python-only (`*.py`)".
 
 ---
 
-## ADR-007 — Capability Selector is not implemented
+## ADR-007 — The Capability Selector is heuristic and explainable
 
 **Status:** Accepted (implemented 2026-11-09)
 **Handoff:** A3.3 and B1 — Selector determines relevance, prefers native, explains skips

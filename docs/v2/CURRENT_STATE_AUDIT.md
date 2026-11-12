@@ -99,7 +99,7 @@ skills/  .toolkit/  .opencode/  .github/workflows/
 | C-16 | MCP surface = 9 tools | **DRIFTED** | was 9; v2 added `capability_registry` (10) then demoted 2 (8) |
 | C-17 | Python 3.14, FastMCP, Playwright, Pytest, uv | **DRIFTED** | Python floor lowered to 3.11; rest confirmed |
 | C-18 | Test count 123 vs 95 | **RESOLVED** | 123 collected at baseline: 118 pass, 3 fail, 2 skip |
-| C-19 | Design conventions in `docs/DESIGN.md` | CONFIRMED | 74 lines |
+| C-19 | Design conventions in `docs/DESIGN.md` | CONFIRMED | rewritten for v2: binding conventions, security rules, benchmark rules, module map |
 | C-20 | Generated reports under `reports/` | CONFIRMED | `BENCH_TOOLS.md`, `test-results/` |
 | C-21 | Machine state gitignored | CONFIRMED | `.gitignore` lists all four |
 
@@ -154,6 +154,8 @@ Build: setuptools ≥75. Python: **≥3.11**.
 | Large-context case | Resolved | `spec_selection` powered to 20 reps/arm; CI excludes zero and clears the 5% threshold |
 | Core block incomplete | Medium | 4 runs excluded as provider 429 stalls, 4 cells unrun. `--resume` completes it; no published verdict depends on them |
 | No external benchmark selected | Resolved | Terminal-Bench 2.0 chosen; adapter not built |
+| Phase B security open | Resolved | S-05, S-07, S-10 fixed; S-08, S-09 documented; `APPROVAL_GATE_THREAT_MODEL.md` |
+| Project roadmap empty | Resolved | `.toolkit/specs/roadmap.md` lists 12 completed and 4 open items, each approvable via `octk approve` |
 | MCP surface 8 > target 6 | Low | Accepted; schema cost measured at 2,499 chars |
 
 ---
@@ -164,7 +166,7 @@ Build: setuptools ≥75. Python: **≥3.11**.
 |---|---|
 | `README.md` | Python badge updated to 3.11; other v1 claims not re-audited |
 | `AGENTS.md` | Updated: no longer references demoted MCP tools |
-| `docs/DESIGN.md` | v1 design doc; not updated for v2 components |
+| `docs/DESIGN.md` | rewritten for v2 (modules, security rules, benchmark rules) |
 | `docs/v2/CODEX_HANDOFF.md` | Corrected model ID to `opencode-go/beam-free`; effort lock added |
 | `reports/BENCH_TOOLS.md` | Historical; not a v2 claim |
 
