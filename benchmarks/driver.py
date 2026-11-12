@@ -40,6 +40,7 @@ from benchmarks.workspace import (
     create_workspace,
     oracle_leaks,
     remove_workspace,
+    tool_input_text,
     wrap_command,
 )
 
@@ -464,6 +465,33 @@ class RunOutcome:
         }
 
 
+def existing_outcome(results: Path, spec: RunSpec) -> RunOutcome | None:
+    """Load a finished run for ``--resume``; ``None`` if it is absent or broken.
+
+    A block can be interrupted (the operator restarts the host, the tool
+    times out). Re-spending model calls on completed runs is waste, but a
+    half-written manifest must never be trusted.
+    """
+    run_id = f"bench-{safe_id(spec.arm)}-{safe_id(spec.task)}-r{spec.rep}"
+    path = results / "manifests" / f"{run_id}.json"
+    if not path.is_file():
+        return None
+    try:
+        manifest = RunManifest.from_dict(
+            json.loads(path.read_text(encoding="utf-8"))
+        )
+    except (OSError, ValueError, TypeError):
+        return None
+    if manifest.tokens_input is None or manifest.duration_s is None:
+        return None
+    return RunOutcome(
+        spec,
+        manifest,
+        str(path),
+        bool(manifest.correctness.get("acceptance_passed")),
+    )
+
+
 def execute_run(
     spec: RunSpec,
     repo: Path,
@@ -587,12 +615,12 @@ def execute_run(
         visible_text = (
             setup_patch.read_text(encoding="utf-8") if setup_patch.is_file() else ""
         )
-        leaks = oracle_leaks(
-            (agent.stdout or "") + (agent.stderr or ""),
-            acceptance_text,
-            oracle_rel,
-            visible_text,
-        )
+        agent_text = (agent.stdout or "") + (agent.stderr or "")
+        # Prefer tool inputs: a doc that *mentions* the oracle is not a leak,
+        # a command that reads it is. Fall back to raw text so an unknown
+        # harness can over-flag rather than silently pass.
+        evidence = tool_input_text(agent_text) or agent_text
+        leaks = oracle_leaks(evidence, acceptance_text, oracle_rel, visible_text)
         valid = not leaks
         # Validity is a separate channel: never overwrite the oracle result.
         # A leaked run is excluded from aggregates, but its correctness is
@@ -1005,6 +1033,7 @@ def run_stage(
     timeout_s: int = DEFAULT_TIMEOUT_S,
     preflight: bool = True,
     label: str = "",
+    resume: bool = False,
     progress: Callable[[RunOutcome, int, int], None] | None = None,
 ) -> StageReport:
     """Run one stage: preflight, schedule, execute, gate, persist.
@@ -1028,6 +1057,13 @@ def run_stage(
 
     outcomes: list[RunOutcome] = []
     for index, spec in enumerate(schedule, start=1):
+        if resume:
+            done = existing_outcome(results, spec)
+            if done is not None:
+                outcomes.append(done)
+                if progress is not None:
+                    progress(done, index, len(schedule))
+                continue
         outcome = execute_run(
             spec,
             repo,
@@ -1053,7 +1089,7 @@ def run_stage(
     )
 
     results.mkdir(parents=True, exist_ok=True)
-    stem = f"stage-{stage}{label}"
+    stem = f"stage-{stage}" + (f"-{label}" if label else "")
     (results / f"{stem}.json").write_text(
         json.dumps(report.to_dict(), indent=2, default=str), encoding="utf-8"
     )
@@ -1249,7 +1285,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--label",
         default="",
-        help="suffix for the persisted report, e.g. -spec writes stage-1-spec.md",
+        help="report suffix: --label spec writes stage-1-spec.md",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse completed manifests instead of re-running them",
     )
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S)
     parser.add_argument("--dry-run", action="store_true", help="print the queue only")
@@ -1304,6 +1345,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_s=args.timeout,
                 tasks=selected,
                 label=args.label,
+                resume=args.resume,
                 progress=_print_progress,
             )
         ]

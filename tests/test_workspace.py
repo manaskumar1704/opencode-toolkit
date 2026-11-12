@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from benchmarks.workspace import (
     create_workspace,
     oracle_leaks,
     remove_workspace,
+    tool_input_text,
     wrap_command,
 )
 
@@ -111,3 +113,60 @@ def test_oracle_leaks_detects_pytest_artifacts() -> None:
         "cat /tmp/pytest-of-user/pytest-1/test/oracle/acceptance.py", ""
     )
     assert any("pytest-of-" in leak for leak in leaks)
+
+
+def _wrap(events: list[dict]) -> str:
+    inner = "\n".join(json.dumps(event) for event in events)
+    return json.dumps({"event": "agent_stdout", "data": inner}) + "\n"
+
+
+def test_tool_input_text_extracts_only_tool_inputs() -> None:
+    stream = _wrap(
+        [
+            {"type": "text", "part": {"text": "/tmp/pytest-of-user/x"}},
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "read",
+                    "state": {"input": {"path": "docs/v2/NOTES.md"}},
+                },
+            },
+        ]
+    )
+
+    evidence = tool_input_text(stream)
+
+    assert "docs/v2/NOTES.md" in evidence
+    # Text the model saw is not evidence that it went looking for the oracle.
+    assert "pytest-of-" not in evidence
+
+
+def test_tool_input_text_flags_a_read_of_the_oracle() -> None:
+    stream = _wrap(
+        [
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "read",
+                    "state": {
+                        "input": {"path": "/tmp/pytest-of-u/pytest-1/oracle/acceptance.py"}
+                    },
+                },
+            }
+        ]
+    )
+
+    leaks = oracle_leaks(tool_input_text(stream), "")
+
+    assert any("pytest-of-" in leak for leak in leaks)
+
+
+def test_tool_input_text_reads_a_plain_stream() -> None:
+    stream = json.dumps(
+        {
+            "type": "tool_use",
+            "part": {"tool": "shell", "state": {"input": {"command": "ls"}}},
+        }
+    )
+
+    assert '"ls"' in tool_input_text(stream)

@@ -17,10 +17,13 @@ This module builds a standalone copy instead:
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from benchmarks.runner import safe_id
 
@@ -134,6 +137,53 @@ def wrap_command(
     return command
 
 
+def _iter_stream_events(text: str) -> Iterator[dict[str, Any]]:
+    """Yield events from a raw stream or from driver-wrapped lines.
+
+    The driver stores ``{"event": "agent_stdout", "data": "<jsonl>"}``; the
+    harness emits one JSON event per line inside ``data``. Both shapes appear
+    in this codebase, so both are handled.
+    """
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("{"):
+            continue
+        try:
+            event = json.loads(stripped)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        data = event.get("data")
+        if isinstance(data, str) and event.get("event") in (
+            "agent_stdout",
+            "agent_stderr",
+        ):
+            yield from _iter_stream_events(data)
+        else:
+            yield event
+
+
+def tool_input_text(stream_text: str) -> str:
+    """Collect only what the agent *sent to tools*.
+
+    Scanning the whole transcript is wrong: our own docs mention
+    ``pytest-of-`` and ``oracle/acceptance.py``, so an agent that greps the
+    repository looks like a cheater. A tool input is different evidence — it
+    is a path the agent asked to read, a command it ran, a pattern it
+    searched for.
+    """
+    chunks: list[str] = []
+    for event in _iter_stream_events(stream_text):
+        if event.get("type") != "tool_use":
+            continue
+        part = event.get("part") or {}
+        payload = (part.get("state") or {}).get("input")
+        if payload:
+            chunks.append(json.dumps(payload, sort_keys=True))
+    return "\n".join(chunks)
+
+
 def oracle_leaks(
     transcript_text: str,
     oracle_text: str,
@@ -144,6 +194,10 @@ def oracle_leaks(
 
     Only test names that are *not* already present in the visible task files
     count as evidence; shared names would otherwise fire on a normal run.
+
+    ``transcript_text`` should be tool inputs (see :func:`tool_input_text`).
+    Callers that cannot parse tool events may pass raw output, which can only
+    over-flag — never under-flag.
     """
     visible_names = set(ORACLE_DEF_RE.findall(visible_text))
     leaks: list[str] = []

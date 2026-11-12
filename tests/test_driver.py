@@ -23,6 +23,7 @@ from benchmarks.driver import (
     dry_run,
     evaluate_gate,
     execute_run,
+    existing_outcome,
     extract_token_totals,
     extract_token_usage,
     render_stage_report,
@@ -633,10 +634,10 @@ def test_run_stage_label_suffixes_the_report(tmp_path: Path) -> None:
         python_executable=sys.executable,
         tasks=tasks,
         preflight=False,
-        label="-core",
+        label="core",
     )
 
-    assert report.label == "-core"
+    assert report.label == "core"
     assert (results / "stage-1-core.json").is_file()
     assert (results / "stage-1-core.md").is_file()
     assert not (results / "stage-1.json").exists()
@@ -664,3 +665,54 @@ def test_report_renders_per_task_effects() -> None:
 def test_per_task_effect_stays_empty_when_underpowered() -> None:
     gate = evaluate_gate(1, _pairs(n=2))
     assert gate.per_task_effect["t"]["E"]["tokens"] is None
+
+
+def test_existing_outcome_ignores_absent_and_broken_manifests(tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    (results / "manifests").mkdir(parents=True)
+    spec = RunSpec("A", "task", "simple isolated bug", "/tmp/x", 1, 1, 1)
+
+    assert existing_outcome(results, spec) is None
+
+    (results / "manifests" / "bench-A-task-r1.json").write_text("{broken")
+    assert existing_outcome(results, spec) is None
+
+
+def test_run_stage_resume_reuses_completed_runs(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    first = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=_fixing_executor({"A": 500, "E": 300}),
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+    )
+    assert len(first.outcomes) == 10
+
+    def must_not_run(spec, worktree, prompt, timeout_s):
+        raise AssertionError(f"resume re-ran {spec.arm} r{spec.rep}")
+
+    second = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=must_not_run,
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+        resume=True,
+    )
+
+    assert len(second.outcomes) == 10
+    assert all(outcome.passed for outcome in second.outcomes)
+    assert second.gate.proceed is True
