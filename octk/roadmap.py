@@ -38,15 +38,22 @@ def parse_roadmap(root: Path) -> list[dict[str, object]]:
     return out
 
 
-def _read_preserving(path: Path) -> tuple[list[str], str]:
-    """Return logical lines and the dominant line ending."""
-    text = path.read_text(encoding="utf-8")
+def _read_preserving(path: Path) -> tuple[list[str], str, str]:
+    """Return logical lines, the dominant line ending, and the trailing ending.
+
+    Read with ``newline=""``: universal-newline mode would silently turn CRLF
+    into LF before we ever see it, which is why CRLF files were being rewritten.
+    """
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        text = handle.read()
     ending = "\r\n" if "\r\n" in text else "\n"
-    return text.splitlines(), ending
+    trailing = ending if text.endswith("\n") else ""
+    return text.splitlines(), ending, trailing
 
 
 def _write_preserving(path: Path, lines: list[str], ending: str, trailing: str) -> None:
-    path.write_text(ending.join(lines) + trailing, encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(ending.join(lines) + trailing)
 
 
 def _select(matches: list[dict[str, object]], task_substring: str) -> dict[str, object]:
@@ -78,8 +85,7 @@ def _update_current_task(root: Path, action: str, task_text: str) -> None:
     index = ToolkitPaths(root).index
     if not index.exists():
         return
-    lines, ending = _read_preserving(index)
-    trailing = "\n" if lines and index.read_text(encoding="utf-8").endswith("\n") else ""
+    lines, ending, trailing = _read_preserving(index)
     value = task_text if action == "current" else "none"
     marker = "**Current task:**"
     lo, hi = _block_line_range(lines)
@@ -104,7 +110,7 @@ def set_status(
         e for e in entries if task_substring.casefold() in str(e.get("text")).casefold()
     ]
     selected = _select(matches, task_substring)
-    line_no = int(selected["line_no"]) - 1
+    line_no = int(str(selected["line_no"])) - 1
     task_text = str(selected["text"])
 
     if alias == "x":
@@ -117,8 +123,7 @@ def set_status(
     ):
         raise RoadmapError("another line is already current ([~])")
 
-    lines, ending = _read_preserving(path)
-    trailing = "\n" if path.read_text(encoding="utf-8").endswith("\n") else ""
+    lines, ending, trailing = _read_preserving(path)
     lines[line_no] = re.sub(
         r"\[( |~|x)\]", f"[{alias}]", lines[line_no], count=1
     )

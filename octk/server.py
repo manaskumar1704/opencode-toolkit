@@ -9,9 +9,9 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from . import audit as audit_mod
+from . import capabilities as capabilities_mod
 from . import drift as drift_mod
-from . import pantry, roadmap as roadmap_mod
+from . import pantry
 from .config import ToolkitPaths, load_config
 from .mcp_proxy import (
     ExternalMcpError,
@@ -23,12 +23,13 @@ from .metrics import MetricsStore
 from .runtime.browser import inspect_url
 from .runtime.debugger import failure_signature, normalize_command, run_smart_debugger
 
-mcp = FastMCP("OpenCodeToolkit")
+mcp = FastMCP("OCTK")
 
 DEBUG_BREAKER = (
     "[OCTK CIRCUIT BREAKER: 2 identical failures detected in debug_inspect. "
-    "You are now authorized to bypass octk_debug_inspect and run raw pytest/python "
-    "via shell or escalate to the user.]"
+    "You may bypass octk_debug_inspect and run raw pytest/python via shell, "
+    "or escalate to the user. This does not change allowed_commands, "
+    "permissions, or the shell boundary.]"
 )
 _DEBUG_LOCK = threading.Lock()
 
@@ -42,7 +43,7 @@ def _log(tool: str, kind: str, raw_chars: int, pruned_chars: int) -> None:
     metrics_path = ToolkitPaths(get_root()).metrics
     try:
         MetricsStore(metrics_path).log_tool_call(tool, raw_chars, pruned_chars, kind=kind)
-    except Exception:  # noqa: BLE001 - metrics must never break a tool call
+    except Exception:  # noqa: BLE001, S110 - metrics must never break a tool call
         pass
 
 
@@ -75,6 +76,25 @@ def _with_breaker(text: str, signature: str | None, strikes: int) -> str:
     return text.rstrip() + "\n\n" + DEBUG_BREAKER + "\n"
 
 
+def _record_breaker(strikes: int, signature: str | None, detail: str) -> None:
+    """Log an escalation. Never widens permissions."""
+    try:
+        MetricsStore(ToolkitPaths(get_root()).metrics).record_breaker(
+            strikes, signature, detail
+        )
+    except Exception:  # noqa: BLE001, S110 - metrics must never break a tool call
+        pass
+
+
+def _escalate(
+    text: str, signature: str | None, strikes: int, detail: str
+) -> str:
+    """Append the breaker note and log the event when it actually fires."""
+    if signature is not None and strikes >= 2:
+        _record_breaker(strikes, signature, detail)
+    return _with_breaker(text, signature, strikes)
+
+
 @mcp.tool()
 def glance_pantry() -> str:
     """Look up the toolkit index and inventory without loading full files."""
@@ -82,6 +102,27 @@ def glance_pantry() -> str:
         result = pantry.glance(get_root())
         _log("glance_pantry", "counterfactual", result.raw_chars, result.pruned_chars)
         return result.text
+    except Exception as exc:  # noqa: BLE001
+        return f"octk error: {type(exc).__name__}: {exc}"
+
+
+@mcp.tool()
+def capability_registry(
+    level: str = "L0",
+    query: str = "",
+    capability_id: str = "",
+) -> str:
+    """Inspect discovered capabilities at L0/L1/L2. Read-only; never invokes."""
+    try:
+        registry = capabilities_mod.load_registry(get_root())
+        text = capabilities_mod.render(
+            registry,
+            level=level,
+            query=query,
+            capability_id=capability_id,
+        )
+        _log("capability_registry", "load", 0, len(text))
+        return text
     except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
 
@@ -109,35 +150,12 @@ def equip_skill(skill_name: str) -> str:
 
 
 @mcp.tool()
-def update_roadmap(task_substring: str, new_status: str) -> str:
-    """Update one roadmap line; 'done' needs prior `octk approve` (human)."""
-    try:
-        line = roadmap_mod.set_status(get_root(), task_substring, new_status)
-        _log("update_roadmap", "measured", 0, len(line))
-        return line
-    except Exception as exc:  # noqa: BLE001 - GateError/RoadmapError become strings
-        return f"octk error: {type(exc).__name__}: {exc}"
-
-
-@mcp.tool()
 def check_spec_drift() -> str:
-    """AST spec-to-code drift scan (undocumented symbols/routes vs specs)."""
+    """Python-AST spec-to-code drift scan (*.py files only; not other languages)."""
     try:
         result = drift_mod.check_drift(get_root())
         _log("check_spec_drift", "counterfactual", result.raw_chars, result.pruned_chars)
         return result.report
-    except Exception as exc:  # noqa: BLE001
-        return f"octk error: {type(exc).__name__}: {exc}"
-
-
-@mcp.tool()
-def run_audit_workflow(audit_cmd: str = "") -> str:
-    """Run graph-freshness then audit; instruct mode advises, never executes."""
-    try:
-        result = audit_mod.run_audit_workflow(get_root(), load_config(get_root()), audit_cmd=audit_cmd)
-        kind = "measured" if load_config(get_root()).get("audit_mode") == "subprocess" else "load"
-        _log("run_audit_workflow", kind, result.raw_chars, result.pruned_chars)
-        return result.text
     except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
 
@@ -159,7 +177,12 @@ async def debug_inspect(command: str) -> str:
             result.raw_chars,
             result.pruned_chars,
         )
-        return _with_breaker(result.text, signature, strikes)
+        return _escalate(
+            result.text,
+            signature,
+            strikes,
+            _debug_detail(command, result.returncode, result.error_line),
+        )
     except Exception as exc:  # noqa: BLE001
         message = f"octk error: {type(exc).__name__}: {exc}"
         detail = (
@@ -172,7 +195,7 @@ async def debug_inspect(command: str) -> str:
             f"{type(exc).__name__}: {exc}",
         )
         strikes = _record_debug_call(signature, detail, 0, len(message))
-        return _with_breaker(message, signature, strikes)
+        return _escalate(message, signature, strikes, detail)
 
 
 @mcp.tool()
@@ -198,7 +221,6 @@ async def equip_external_mcp(
         return f"octk error: {type(exc).__name__}: {exc}"
 
 
-@mcp.tool()
 async def browser_inspect(url: str, wait_ms: int = 1000) -> str:
     """Load a URL in headless Chromium and summarize errors/a11y/elements."""
     try:
@@ -207,6 +229,18 @@ async def browser_inspect(url: str, wait_ms: int = 1000) -> str:
         return result.text
     except Exception as exc:  # noqa: BLE001
         return f"octk error: {type(exc).__name__}: {exc}"
+
+
+# Feature flag: Chromium is heavy and not every user needs it. Disable with
+# OCTK_BROWSER=0 to drop the tool (and its schema cost) from the surface.
+BROWSER_ENABLED = os.environ.get("OCTK_BROWSER", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+if BROWSER_ENABLED:
+    mcp.tool()(browser_inspect)
 
 
 def main() -> None:

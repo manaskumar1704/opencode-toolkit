@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import types
 from pathlib import Path
 
 import pytest
 
-import octk.server as server
+from octk import server
 from octk.config import ToolkitPaths, read_json
 
 EXPECTED_TOOLS = {
     "glance_pantry",
+    "capability_registry",
     "equip_spec",
     "equip_skill",
-    "update_roadmap",
-    "run_audit_workflow",
     "check_spec_drift",
     "debug_inspect",
     "browser_inspect",
@@ -27,6 +25,7 @@ EXPECTED_TOOLS = {
 @pytest.fixture
 def server_root(tmp_root: Path, monkeypatch) -> Path:
     monkeypatch.setenv("OCTK_ROOT", str(tmp_root))
+    monkeypatch.setenv("OCTK_USER_CONFIG", str(tmp_root / "userconfig"))
     return tmp_root
 
 
@@ -45,16 +44,34 @@ async def _tools_models() -> dict[str, object]:
     return {t.name: t for t in await server.mcp.list_tools()}
 
 
-async def test_nine_tools_exposed(server_root) -> None:
+async def test_expected_tools_exposed(server_root) -> None:
     tools = await _tools_models()
     assert set(tools) == EXPECTED_TOOLS
 
 
-async def test_update_roadmap_has_no_user_approved(server_root) -> None:
-    tools = await _tools_models()
-    tool = tools["update_roadmap"]
-    schema = getattr(tool, "parameters", None) or tool.inputSchema
-    assert "user_approved" not in json.dumps(schema)
+async def test_capability_registry_lists_discovered(server_root) -> None:
+    from octk import capabilities
+    from octk.adapters.opencode import OpenCodeAdapter
+
+    skill = server_root / ".opencode" / "skills" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\ndescription: Demo skill\n---\n", encoding="utf-8"
+    )
+    discovered = list(OpenCodeAdapter(server_root).discover_capabilities())
+    capabilities.sync_discovered(server_root, discovered)
+
+    tools = await _tools()
+    result = tools["capability_registry"].fn()
+
+    assert "demo" in result
+    assert "Capabilities (" in result
+
+
+async def test_capability_registry_unknown_id_is_an_error_string(server_root) -> None:
+    tools = await _tools()
+    result = tools["capability_registry"].fn(capability_id="skill:no/such")
+    assert result.startswith("octk error:")
 
 
 async def test_equip_spec_rejects_traversal(server_root) -> None:
@@ -73,8 +90,3 @@ async def test_glance_and_equip_log_records(server_root) -> None:
     assert "load" in kinds
 
 
-async def test_update_roadmap_gate_returns_error_string(server_root) -> None:
-    tools = await _tools()
-    result = tools["update_roadmap"].fn("item", "done")
-    assert result.startswith("octk error:")
-    assert "GateError" in result

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from statistics import median, mean
+from statistics import mean, median
 from typing import Any
 
 from .config import read_json
@@ -239,6 +239,31 @@ def _standing_rows(paths: list[Path]) -> list[dict[str, Any]]:
     return [rows[k] for k in sorted(rows)]
 
 
+def _net_effect(tasks: list[dict[str, Any]], paths: list[Path]) -> dict[str, Any]:
+    """Gross token savings minus OCTK's own overhead.
+
+    Gross is the chars/4 proxy. Standing overhead uses exact recorded turn-1
+    tokens and is only available when a ``bare`` baseline exists.
+    """
+    gross = sum(row["approx_tokens_saved"] for row in _measured_tool_savings(tasks))
+    gross += sum(row["approx_tokens_saved"] for row in _counterfactual_rows(paths))
+    load = _load_total(paths)["approx_tokens"]
+    standing = {row["label"]: row["tokens_in"] for row in _standing_rows(paths)}
+    bare = standing.get("bare")
+    overhead = None
+    if bare is not None:
+        overhead = sum(value - bare for label, value in standing.items() if label != "bare")
+    return {
+        "gross_saved_tokens": gross,
+        "octk_load_tokens": load,
+        "standing_overhead_tokens": overhead,
+        "net_tokens": gross - load - (overhead or 0),
+        "complete": overhead is not None,
+        "gross_basis": "chars/4 proxy",
+        "overhead_basis": "exact recorded turn-1 tokens" if overhead is not None else None,
+    }
+
+
 def build_report_data(paths: list[Path]) -> dict[str, Any]:
     """Same numbers as the markdown report, as a dict."""
     tasks = _collect_tasks(paths)
@@ -251,6 +276,7 @@ def build_report_data(paths: list[Path]) -> dict[str, Any]:
         "load": _load_total(paths),
         "cache": _cache_rows(tasks),
         "standing": _standing_rows(paths),
+        "net": _net_effect(tasks, paths),
         "models": sorted({str(t.get("model")) for t in tasks if t.get("model")}),
         "n_paired": len(paired),
     }
@@ -342,13 +368,32 @@ def build_report(paths: list[Path]) -> str:
         f"(approx {data['load']['approx_tokens']} tokens)."
     )
 
+    net = data["net"]
+    out += ["", "## Net effect (gross saved minus octk overhead)", ""]
+    out += ["| item | approx tokens |", "|---|---|"]
+    out.append(f"| gross saved by pruning | {net['gross_saved_tokens']} |")
+    out.append(f"| octk context delivered | -{net['octk_load_tokens']} |")
+    overhead = net["standing_overhead_tokens"]
+    out.append(f"| standing overhead vs bare | {'unknown' if overhead is None else f'-{overhead}'} |")
+    out.append(f"| **net** | **{net['net_tokens']}** |")
+    if not net["complete"]:
+        out.append(
+            "Standing overhead is unknown. Record a baseline with "
+            "`octk standing add bare --tokens-in N` and an OCTK condition with "
+            "`octk standing add octk --tokens-in N`."
+        )
+    out.append(
+        "Gross uses the chars/4 proxy; standing overhead uses exact recorded "
+        "tokens. The net figure is not provider-measured."
+    )
+
     out += ["", "## Standing context cost (turn-1 input tokens)", ""]
     out += ["| label | turn-1 input tokens | delta vs bare |", "|---|---|---|"]
     for row in data["standing"]:
         delta = row["delta_vs_bare"]
         out.append(
             f"| {row['label']} | {row['tokens_in']} | "
-            f"{'-' if delta is None else ('%-+d' % delta if isinstance(delta, int) else delta)} |"
+            f"{'-' if delta is None else (f'{delta:+d}' if isinstance(delta, int) else delta)} |"
         )
     if not data["standing"]:
         out.append("(no standing costs recorded; use `octk standing add <label> --tokens-in N`)")

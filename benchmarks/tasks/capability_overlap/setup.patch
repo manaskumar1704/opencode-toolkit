@@ -1,0 +1,28 @@
+diff --git a/.opencode/skills/code-review/SKILL.md b/.opencode/skills/code-review/SKILL.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.opencode/skills/code-review/SKILL.md
+@@ -0,0 +1,8 @@
++---
++name: code-review
++description: Review a diff for correctness and style
++---
++
++# Code review
++
++Check correctness and style.
+diff --git a/.opencode/skills/code-review-lite/SKILL.md b/.opencode/skills/code-review-lite/SKILL.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.opencode/skills/code-review-lite/SKILL.md
+@@ -0,0 +1,8 @@
++---
++name: code-review-lite
++description: Review a diff for correctness only
++---
++
++# Code review lite
++
++Check correctness only.

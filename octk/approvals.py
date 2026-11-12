@@ -7,6 +7,7 @@ from typing import Any
 
 from .config import ToolkitPaths, atomic_write_json, load_config, read_json
 
+
 def _fresh_store() -> dict[str, Any]:
     return {"version": 1, "approvals": []}
 
@@ -34,7 +35,7 @@ def create_approval(
         "consumed_at": None,
     }
     data["approvals"].append(approval)
-    atomic_write_json(path, data)
+    atomic_write_json(path, data, mode=0o600)
     return approval
 
 
@@ -72,7 +73,7 @@ def find_valid_approval(
     valid = [a for a in matches if _valid(a, now, ttl_seconds)]
     if not valid:
         return None
-    return sorted(valid, key=lambda a: float(a.get("created_at", 0)))[-1]
+    return max(valid, key=lambda a: float(a.get("created_at", 0)))
 
 
 def consume_approval(root: Path, approval: dict[str, Any], now: float) -> None:
@@ -83,4 +84,4 @@ def consume_approval(root: Path, approval: dict[str, Any], now: float) -> None:
         if record.get("id") == approval.get("id"):
             record["consumed_at"] = now
             break
-    atomic_write_json(path, data)
+    atomic_write_json(path, data, mode=0o600)

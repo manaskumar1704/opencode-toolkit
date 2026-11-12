@@ -8,7 +8,6 @@ from pathlib import Path
 
 from octk.scaffold import init_repo
 
-
 EXPECTED = [
     ".opencode/commands/ideate.md",
     ".opencode/agents/plan.md",
@@ -99,3 +98,11 @@ def test_config_json_written_from_defaults(tmp_path: Path) -> None:
     assert cfg["audit_mode"] == "instruct"
     assert cfg["external_mcps"] == {}
     assert "graphify-out/GRAPH_REPORT.md" in cfg["graph_report_paths"]
+
+
+def test_opencode_json_command_is_machine_independent() -> None:
+    from octk.adapters.opencode_scaffold import opencode_json
+
+    command = opencode_json()["mcp"]["servers"]["octk"]["command"]
+    assert command == ["octk-mcp"] or command[1:] == ["-m", "octk.server"]
+    assert not any("\\" in part or part.endswith(".EXE") for part in command)

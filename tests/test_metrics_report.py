@@ -147,3 +147,40 @@ def test_standing_costs_recorded_and_reported(tmp_path: Path) -> None:
     standing = {row["label"]: row for row in d["standing"]}
     assert standing["skills"]["delta_vs_bare"] == 200
     assert standing["mcps"]["delta_vs_bare"] == 500
+
+
+def test_net_effect_separates_gross_and_overhead(tmp_path: Path) -> None:
+    path = tmp_path / "metrics.json"
+    _fill(path, "with_octk", "t1", 1.0, 1000, 100, (500, 50), 2, True)
+    store = _store(path)
+    store.add_standing("bare", 1000)
+    store.add_standing("octk", 1200)
+
+    net = build_report_data([path])["net"]
+
+    assert net["gross_saved_tokens"] > 0
+    assert net["standing_overhead_tokens"] == 200
+    assert net["net_tokens"] == (
+        net["gross_saved_tokens"] - net["octk_load_tokens"] - 200
+    )
+    assert net["complete"] is True
+
+
+def test_net_effect_incomplete_without_bare_baseline(tmp_path: Path) -> None:
+    path = tmp_path / "metrics.json"
+    _fill(path, "with_octk", "t1", 1.0, 1000, 100, (500, 50), 2, True)
+
+    net = build_report_data([path])["net"]
+
+    assert net["standing_overhead_tokens"] is None
+    assert net["complete"] is False
+
+
+def test_report_contains_net_effect_section(tmp_path: Path) -> None:
+    path = tmp_path / "metrics.json"
+    _fill(path, "with_octk", "t1", 1.0, 1000, 100, (500, 50), 2, True)
+
+    text = build_report([path])
+
+    assert "Net effect" in text
+    assert "gross saved by pruning" in text

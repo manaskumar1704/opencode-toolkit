@@ -1,0 +1,11 @@
+{
+  "name": "architecture_drift",
+  "category": "architecture drift",
+  "prompt": "`octk/drift_target.py` drifts from `docs/contract.md`. Make the implementation match the contract exactly.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "octk/drift_target.py"
+  ]
+}

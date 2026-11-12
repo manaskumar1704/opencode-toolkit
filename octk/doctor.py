@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -13,10 +12,6 @@ from .sentinel import SENTINEL_END, SENTINEL_START
 DYNAMIC_RE = re.compile(
     r"(?m)(\b(?:19|20)\d{2}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b"
     r"|\*\*Current task:\*\*|generated\s+(?:at|on)\b)"
-)
-REQUIRED_PERMISSIONS = (
-    ("shell", "octk approve *"),
-    ("edit", ".toolkit/approvals.json"),
 )
 
 
@@ -75,37 +70,22 @@ def _check_config(root: Path) -> dict[str, str]:
                 "warn",
                 f"external_mcps[{name!r}].command must be a non-empty string list",
             )
+    if external:
+        return _check(
+            "config_valid",
+            "pass",
+            f".toolkit/config.json is valid; {len(external)} external MCP server(s) "
+            "configured - their command is executed verbatim, so treat the config "
+            "as trusted input",
+        )
     return _check("config_valid", "pass", ".toolkit/config.json is valid")
 
 
 def _check_permissions(root: Path) -> dict[str, str]:
-    path = root / "opencode.json"
-    if not path.exists():
-        return _check("permissions_gate", "warn", "opencode.json missing; run `octk init`")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return _check("permissions_gate", "warn", "opencode.json is not valid JSON")
-    rules = data.get("permissions") if isinstance(data, dict) else None
-    if not isinstance(rules, list):
-        return _check("permissions_gate", "warn", "opencode.json has no permissions rule list")
-    missing = []
-    for action, resource in REQUIRED_PERMISSIONS:
-        if not any(
-            isinstance(rule, dict)
-            and rule.get("action") == action
-            and rule.get("resource") == resource
-            and rule.get("effect") == "deny"
-            for rule in rules
-        ):
-            missing.append(f"{action}:{resource}")
-    if missing:
-        return _check(
-            "permissions_gate",
-            "warn",
-            "missing deny rule(s): " + ", ".join(missing),
-        )
-    return _check("permissions_gate", "pass", "approval gate deny rules are present")
+    from .adapters import permissions_gate
+
+    status, detail = permissions_gate(root)
+    return _check("permissions_gate", status, detail)
 
 
 def run_doctor(root: Path) -> dict[str, Any]:

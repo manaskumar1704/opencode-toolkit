@@ -9,6 +9,7 @@ FastAPI-style route decorators, then compares them against
 from __future__ import annotations
 
 import ast
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,13 +40,13 @@ class DriftResult:
 def _iter_py_files(root: Path) -> list[Path]:
     """Every tracked ``.py`` file, excluding vendored/test/hidden dirs."""
     out: list[Path] = []
-    for dirpath, dirnames, filenames in root.walk():
+    for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [
             d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")
         ]
         for name in filenames:
             if name.endswith(".py"):
-                out.append(dirpath / name)
+                out.append(Path(dirpath) / name)
     return out
 
 
@@ -110,6 +111,20 @@ def _mentions_in_spec(spec_text: str) -> list[str]:
     return re.findall(r"`([A-Za-z_][A-Za-z0-9_.]*(?:\([^)]*\))?)`", spec_text)
 
 
+MAX_DRIFT_ITEMS = 20
+
+
+def _report_section(title: str, items: list[str]) -> list[str]:
+    """Cap a section so a diagnostic cannot dump thousands of symbols."""
+    if not items:
+        return []
+    lines = [f"{title} ({len(items)}):"]
+    lines += [f"  - {item}" for item in items[:MAX_DRIFT_ITEMS]]
+    if len(items) > MAX_DRIFT_ITEMS:
+        lines.append(f"  ... and {len(items) - MAX_DRIFT_ITEMS} more")
+    return lines
+
+
 def check_drift(root: Path) -> DriftResult:
     """Compare live code symbols against architecture.md + roadmap.md."""
     py_files = _iter_py_files(root)
@@ -134,12 +149,8 @@ def check_drift(root: Path) -> DriftResult:
     ]
 
     lines: list[str] = ["Spec drift report"]
-    if undocumented:
-        lines.append("undocumented in specs:")
-        lines += [f"  - {u}" for u in undocumented]
-    if missing_in_code:
-        lines.append("mentioned in specs, missing in code:")
-        lines += [f"  - {m}" for m in missing_in_code]
+    lines += _report_section("undocumented in specs", undocumented)
+    lines += _report_section("mentioned in specs, missing in code", missing_in_code)
     if not undocumented and not missing_in_code:
         lines.append("No drift detected.")
 

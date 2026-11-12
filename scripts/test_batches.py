@@ -71,7 +71,7 @@ def _run_batch(index: int) -> int:
     with log.open("w", encoding="utf-8") as fh:
         fh.write("$ " + " ".join(cmd) + "\n\n")
         fh.flush()
-        proc = subprocess.run(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        proc = subprocess.run(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT, check=False)
     return proc.returncode
 
 

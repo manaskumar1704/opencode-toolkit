@@ -1,0 +1,546 @@
+{
+  "version": 1,
+  "capabilities": [
+    {
+      "id": "cli:graphify/graphify",
+      "type": "cli",
+      "name": "graphify",
+      "description": "Optional repository graph provider for call paths, symbols, and affected components",
+      "provider": "graphify",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "disabled",
+      "invocation": {
+        "method": "cli",
+        "command": "graphify",
+        "schema_ref": null,
+        "state": "cold"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": null
+    },
+    {
+      "id": "command:opencode/ideate",
+      "type": "command",
+      "name": "ideate",
+      "description": "Interview, blueprint, then scaffold a project plan with octk",
+      "provider": "opencode",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "command",
+        "command": "/ideate",
+        "schema_ref": ".opencode/commands/ideate.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/commands/ideate.md"
+    },
+    {
+      "id": "mcp_server:servers/servers",
+      "type": "mcp_server",
+      "name": "servers",
+      "description": "MCP server servers (lazy)",
+      "provider": "servers",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "mcp",
+        "command": null,
+        "schema_ref": "opencode.json#mcp.servers"
+      },
+      "permissions": {
+        "side_effects": [
+          "unknown"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": "opencode.json"
+    },
+    {
+      "id": "octk_native:octk/spec-acceptance",
+      "type": "octk_native",
+      "name": "acceptance",
+      "description": "Acceptance",
+      "provider": "octk",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "equip_spec",
+        "command": "acceptance",
+        "schema_ref": ".toolkit/specs/acceptance.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".toolkit/specs/acceptance.md"
+    },
+    {
+      "id": "octk_native:octk/spec-architecture",
+      "type": "octk_native",
+      "name": "architecture",
+      "description": "Architecture (HLD)",
+      "provider": "octk",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "equip_spec",
+        "command": "architecture",
+        "schema_ref": ".toolkit/specs/architecture.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".toolkit/specs/architecture.md"
+    },
+    {
+      "id": "octk_native:octk/spec-roadmap",
+      "type": "octk_native",
+      "name": "roadmap",
+      "description": "Roadmap",
+      "provider": "octk",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "equip_spec",
+        "command": "roadmap",
+        "schema_ref": ".toolkit/specs/roadmap.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".toolkit/specs/roadmap.md"
+    },
+    {
+      "id": "octk_native:octk/spec-user_flow",
+      "type": "octk_native",
+      "name": "user_flow",
+      "description": "User flow",
+      "provider": "octk",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "equip_spec",
+        "command": "user_flow",
+        "schema_ref": ".toolkit/specs/user_flow.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".toolkit/specs/user_flow.md"
+    },
+    {
+      "id": "skill:design-taste-frontend/design-taste-frontend",
+      "type": "skill",
+      "name": "design-taste-frontend",
+      "description": "Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and shi",
+      "provider": "design-taste-frontend",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/design-taste-frontend/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/design-taste-frontend"
+    },
+    {
+      "id": "skill:free-tier-deploy/free-tier-deploy",
+      "type": "skill",
+      "name": "free-tier-deploy",
+      "description": "Operational checklist for deploying and running this stack (Render free web service, Vercel frontend, Neon Postgres, GitHub Actions) learned",
+      "provider": "free-tier-deploy",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/free-tier-deploy/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/free-tier-deploy"
+    },
+    {
+      "id": "skill:gemini-api-dev/gemini-api-dev",
+      "type": "skill",
+      "name": "gemini-api-dev",
+      "description": "Use this skill when writing code that calls the Gemini API for text generation, multi-turn chat, multimodal understanding, image generation,",
+      "provider": "gemini-api-dev",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/gemini-api-dev/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/gemini-api-dev"
+    },
+    {
+      "id": "skill:gemini-live-api-dev/gemini-live-api-dev",
+      "type": "skill",
+      "name": "gemini-live-api-dev",
+      "description": "Use this skill when building real-time, bidirectional streaming applications with the Gemini Live API, or migrating legacy Live models (2.0/",
+      "provider": "gemini-live-api-dev",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/gemini-live-api-dev/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/gemini-live-api-dev"
+    },
+    {
+      "id": "skill:gemini-omni-flash-api/gemini-omni-flash-api",
+      "type": "skill",
+      "name": "gemini-omni-flash-api",
+      "description": "Use this skill for generative video editing, text-to-video, image-referenced video generation, first-frame-to-video, first-and-last-frame tr",
+      "provider": "gemini-omni-flash-api",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/gemini-omni-flash-api/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/gemini-omni-flash-api"
+    },
+    {
+      "id": "skill:high-end-visual-design/high-end-visual-design",
+      "type": "skill",
+      "name": "high-end-visual-design",
+      "description": "Teaches the AI to design like a high-end agency. Defines the exact fonts, spacing, shadows, card structures, and animations that make a webs",
+      "provider": "high-end-visual-design",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/high-end-visual-design/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/high-end-visual-design"
+    },
+    {
+      "id": "skill:imagegen-frontend-mobile/imagegen-frontend-mobile",
+      "type": "skill",
+      "name": "imagegen-frontend-mobile",
+      "description": "Elite mobile app image-generation skill for creating premium, app-native screen concepts and flows. Designed for iOS, Android, and cross-pla",
+      "provider": "imagegen-frontend-mobile",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/imagegen-frontend-mobile/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/imagegen-frontend-mobile"
+    },
+    {
+      "id": "skill:imagegen-frontend-web/imagegen-frontend-web",
+      "type": "skill",
+      "name": "imagegen-frontend-web",
+      "description": "Elite frontend image-direction skill for generating premium, conversion-aware website design references. CRITICAL OUTPUT RULE \u2014 generate ONE",
+      "provider": "imagegen-frontend-web",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/imagegen-frontend-web/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/imagegen-frontend-web"
+    },
+    {
+      "id": "skill:langfuse/langfuse",
+      "type": "skill",
+      "name": "langfuse",
+      "description": ">-",
+      "provider": "langfuse",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/langfuse/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/langfuse"
+    },
+    {
+      "id": "skill:neon-postgres/neon-postgres",
+      "type": "skill",
+      "name": "neon-postgres",
+      "description": ">-",
+      "provider": "neon-postgres",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/neon-postgres/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/neon-postgres"
+    },
+    {
+      "id": "skill:playwright-cli/playwright-cli",
+      "type": "skill",
+      "name": "playwright-cli",
+      "description": "Automate browser interactions, test web pages and work with Playwright tests.",
+      "provider": "playwright-cli",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/playwright-cli/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/playwright-cli"
+    },
+    {
+      "id": "skill:vercel-react-best-practices/vercel-react-best-practices",
+      "type": "skill",
+      "name": "vercel-react-best-practices",
+      "description": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refacto",
+      "provider": "vercel-react-best-practices",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/vercel-react-best-practices/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/vercel-react-best-practices"
+    },
+    {
+      "id": "skill:windows-shell-discipline/windows-shell-discipline",
+      "type": "skill",
+      "name": "windows-shell-discipline",
+      "description": "Rules for running commands in the OpenCode harness on Windows, where the shell is Git Bash and PowerShell syntax breaks it. Load before runn",
+      "provider": "windows-shell-discipline",
+      "version": null,
+      "scope": "project",
+      "harness": [
+        "opencode"
+      ],
+      "activation": "enabled",
+      "invocation": {
+        "method": "skill",
+        "command": null,
+        "schema_ref": ".opencode/skills/windows-shell-discipline/SKILL.md"
+      },
+      "permissions": {
+        "side_effects": [
+          "read_only"
+        ]
+      },
+      "cost": null,
+      "provenance": "discovered",
+      "verified_at": "2026-11-09",
+      "source_path": ".opencode/skills/windows-shell-discipline"
+    }
+  ]
+}

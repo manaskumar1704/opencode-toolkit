@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
+
+from ..diagnostics import DiagnosticResult, build_result
 
 MAX_ELEMENT_TEXT = 60
+
+# Cloud metadata endpoints. A local dev tool has no business fetching these,
+# and doing so is the classic SSRF-to-credentials path.
+BLOCKED_HOSTS = frozenset(
+    {
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata",
+        "instance-data",
+    }
+)
 
 
 @dataclass
@@ -13,6 +28,10 @@ class BrowserResult:
     text: str
     raw_chars: int
     pruned_chars: int
+
+    def diagnostic(self, required_signals: Iterable[str] = ()) -> DiagnosticResult:
+        """Measure this snapshot against the signals it was required to keep."""
+        return build_result("browser", self.text, self.raw_chars, required_signals)
 
 
 def _short(text: Any, limit: int) -> str:
@@ -83,6 +102,9 @@ async def inspect_url(url: str, wait_ms: int = 1000) -> BrowserResult:
     """Load URL in headless Chromium and summarize errors + interactive UI."""
     if not url.startswith(("http://", "https://")):
         raise ValueError("only http/https URLs are allowed")
+    host = (urlsplit(url).hostname or "").casefold()
+    if host in BLOCKED_HOSTS:
+        raise ValueError(f"refusing to fetch metadata host: {host}")
     try:
         from playwright.async_api import async_playwright
     except ImportError as exc:

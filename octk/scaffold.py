@@ -3,26 +3,21 @@
 from __future__ import annotations
 
 import json
-import shutil
-import sys
 from pathlib import Path
 
+from .adapters import scaffold_managed_files
 from .config import DEFAULT_CONFIG, load_config
 from .sentinel import upsert_sentinel_block
 from .templates import (
     ACCEPTANCE_MD_TEMPLATE,
-    AGENT_NAMES,
     ARCH_MD_TEMPLATE,
     FLOW_MD_TEMPLATE,
-    IDEATE_COMMAND_TEMPLATE,
     INDEX_MD_TEMPLATE,
     ROADMAP_MD_TEMPLATE,
-    render_agent_md,
     render_agents_md,
 )
 
 _MANAGED_FILES = {
-    ".opencode/commands/ideate.md": IDEATE_COMMAND_TEMPLATE,
     ".toolkit/specs/architecture.md": ARCH_MD_TEMPLATE,
     ".toolkit/specs/user_flow.md": FLOW_MD_TEMPLATE,
     ".toolkit/specs/acceptance.md": ACCEPTANCE_MD_TEMPLATE,
@@ -40,26 +35,6 @@ def _render_agents(root: Path) -> str:
     always_on = list(cfg.get("always_on_skills", []))
     server = str(cfg.get("server_name", "octk"))
     return render_agents_md(server, always_on)
-
-
-def opencode_json() -> dict:
-    """OpenCode V2 config: mcp.servers + permissions rule array."""
-    exe = shutil.which("octk-mcp")
-    command = [exe] if exe else [sys.executable, "-m", "octk.server"]
-    return {
-        "mcp": {
-            "servers": {
-                "octk": {"type": "local", "command": command, "codemode": False},
-            }
-        },
-        "small_model": "opencode-go/deepseek-v4.1-flash",
-        "permissions": [
-            {"action": "shell", "resource": "octk approve *", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/approvals.json", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/metrics.json", "effect": "deny"},
-            {"action": "edit", "resource": ".toolkit/specs/roadmap.md", "effect": "ask"},
-        ],
-    }
 
 
 def _append_gitignore_once(root: Path) -> bool:
@@ -126,23 +101,21 @@ def init_repo(root: Path, force: bool = False) -> dict[str, list[str]]:
         _write_text(path, template or "")
         created.append(rel)
 
-    # Agents: frontmatter authoritative, body sentinel-preserved.
-    for name in AGENT_NAMES:
-        rel = f".opencode/agents/{name}.md"
-        outcome = _upsert_managed(root, rel, render_agent_md(name), force)
-        if outcome == "created":
-            created.append(rel)
-        elif outcome == "skipped":
+    # Harness-specific files (config, agents, commands) come from the adapter.
+    for rel, content, mode in scaffold_managed_files():
+        if mode == "sentinel":
+            outcome = _upsert_managed(root, rel, content, force)
+            if outcome == "created":
+                created.append(rel)
+            elif outcome == "skipped":
+                skipped.append(rel)
+            continue
+        path = root / rel
+        if path.exists() and not force:
             skipped.append(rel)
-
-    # opencode.json
-    opencode_rel = "opencode.json"
-    opencode_path = root / opencode_rel
-    if opencode_path.exists() and not force:
-        skipped.append(opencode_rel)
-    else:
-        _write_text(opencode_path, json.dumps(opencode_json(), indent=2) + "\n")
-        created.append(opencode_rel)
+            continue
+        _write_text(path, content)
+        created.append(rel)
 
     skills_keep = ".toolkit/skills/.gitkeep"
     skills_dir = root / ".toolkit" / "skills"

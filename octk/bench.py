@@ -14,7 +14,8 @@ import json
 import socket
 import tempfile
 import threading
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -124,7 +125,7 @@ def _free_port() -> int:
 def _make_browser_fixture(directory: Path) -> tuple[http.server.ThreadingHTTPServer, str]:
     """Serve the heavy page locally; returns (server, url)."""
     (directory / "index.html").write_text(BROWSER_HTML, encoding="utf-8")
-    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(  # noqa: E731
+    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(
         *args, directory=str(directory), **kw
     )
     server = http.server.ThreadingHTTPServer(("127.0.0.1", _free_port()), handler)
@@ -208,6 +209,11 @@ def _schema_overhead() -> dict[str, Any]:
     }
 
 
+def schema_overhead() -> dict[str, Any]:
+    """Public view of the model-visible tool-schema cost."""
+    return _schema_overhead()
+
+
 def run_tool_bench(root: Path, cases: list[str] | None = None) -> dict[str, Any]:
     """Run bench cases and return the results dict (JSON-serializable)."""
     unknown = [n for n in (cases or []) if n not in CASE_NAMES]
@@ -219,7 +225,7 @@ def run_tool_bench(root: Path, cases: list[str] | None = None) -> dict[str, Any]
     if agents.exists():
         agents_bytes = agents.stat().st_size
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
         "cases": [_BUILDERS[n]() for n in names],
         "schema_overhead": _schema_overhead(),
         "agents_md_bytes": agents_bytes,
@@ -238,9 +244,11 @@ def format_bench(results: dict[str, Any]) -> str:
     out = [
         "# octk tool bench report",
         "",
-        f"Generated {results['timestamp']}. All sizes are characters "
-        "(approx tokens uses the chars/4 proxy). Retention < 1.0 means a required "
-        "signal was lost in the pruned output.",
+        (
+            f"Generated {results['timestamp']}. All sizes are characters "
+            "(approx tokens uses the chars/4 proxy). Retention < 1.0 means a required "
+            "signal was lost in the pruned output."
+        ),
         "",
         "## Cases",
         "",
@@ -269,9 +277,11 @@ def format_bench(results: dict[str, Any]) -> str:
         "",
         "## Schema overhead (what the octk MCP server adds to the tool list)",
         "",
-        f"{head['tools']} tools: names {head['name_bytes']} B, descriptions "
-        f"{head['description_bytes']} B, JSON schemas {head['schema_bytes']} B "
-        f"= {head['total_bytes']} B total (approx {approx_tokens(head['total_bytes'])} tokens).",
+        (
+            f"{head['tools']} tools: names {head['name_bytes']} B, descriptions "
+            f"{head['description_bytes']} B, JSON schemas {head['schema_bytes']} B "
+            f"= {head['total_bytes']} B total (approx {approx_tokens(head['total_bytes'])} tokens)."
+        ),
     ]
     agents = results.get("agents_md_bytes")
     if agents is None:

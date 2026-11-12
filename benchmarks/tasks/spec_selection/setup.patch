@@ -1,0 +1,360 @@
+diff --git a/.toolkit/specs/service-00.md b/.toolkit/specs/service-00.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-00.md
+@@ -0,0 +1,12 @@
++# Service 00
++
++Owner: team-0
++
++## Deployment
++
++region: region-00
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-01.md b/.toolkit/specs/service-01.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-01.md
+@@ -0,0 +1,12 @@
++# Service 01
++
++Owner: team-1
++
++## Deployment
++
++region: region-01
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-02.md b/.toolkit/specs/service-02.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-02.md
+@@ -0,0 +1,12 @@
++# Service 02
++
++Owner: team-2
++
++## Deployment
++
++region: region-02
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-03.md b/.toolkit/specs/service-03.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-03.md
+@@ -0,0 +1,12 @@
++# Service 03
++
++Owner: team-3
++
++## Deployment
++
++region: region-03
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-04.md b/.toolkit/specs/service-04.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-04.md
+@@ -0,0 +1,12 @@
++# Service 04
++
++Owner: team-4
++
++## Deployment
++
++region: region-04
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-05.md b/.toolkit/specs/service-05.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-05.md
+@@ -0,0 +1,12 @@
++# Service 05
++
++Owner: team-0
++
++## Deployment
++
++region: region-05
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-06.md b/.toolkit/specs/service-06.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-06.md
+@@ -0,0 +1,12 @@
++# Service 06
++
++Owner: team-1
++
++## Deployment
++
++region: region-06
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-07.md b/.toolkit/specs/service-07.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-07.md
+@@ -0,0 +1,12 @@
++# Service 07
++
++Owner: team-2
++
++## Deployment
++
++region: region-07
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-08.md b/.toolkit/specs/service-08.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-08.md
+@@ -0,0 +1,12 @@
++# Service 08
++
++Owner: team-3
++
++## Deployment
++
++region: region-08
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-09.md b/.toolkit/specs/service-09.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-09.md
+@@ -0,0 +1,12 @@
++# Service 09
++
++Owner: team-4
++
++## Deployment
++
++region: region-09
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-10.md b/.toolkit/specs/service-10.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-10.md
+@@ -0,0 +1,12 @@
++# Service 10
++
++Owner: team-0
++
++## Deployment
++
++region: region-10
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-11.md b/.toolkit/specs/service-11.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-11.md
+@@ -0,0 +1,12 @@
++# Service 11
++
++Owner: team-1
++
++## Deployment
++
++region: region-11
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-12.md b/.toolkit/specs/service-12.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-12.md
+@@ -0,0 +1,12 @@
++# Service 12
++
++Owner: team-2
++
++## Deployment
++
++region: region-12
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-13.md b/.toolkit/specs/service-13.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-13.md
+@@ -0,0 +1,12 @@
++# Payments
++
++Owner: team-3
++
++## Deployment
++
++region: eu-west-2
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-14.md b/.toolkit/specs/service-14.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-14.md
+@@ -0,0 +1,12 @@
++# Service 14
++
++Owner: team-4
++
++## Deployment
++
++region: region-14
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-15.md b/.toolkit/specs/service-15.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-15.md
+@@ -0,0 +1,12 @@
++# Service 15
++
++Owner: team-0
++
++## Deployment
++
++region: region-15
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-16.md b/.toolkit/specs/service-16.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-16.md
+@@ -0,0 +1,12 @@
++# Service 16
++
++Owner: team-1
++
++## Deployment
++
++region: region-16
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-17.md b/.toolkit/specs/service-17.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-17.md
+@@ -0,0 +1,12 @@
++# Service 17
++
++Owner: team-2
++
++## Deployment
++
++region: region-17
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-18.md b/.toolkit/specs/service-18.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-18.md
+@@ -0,0 +1,12 @@
++# Service 18
++
++Owner: team-3
++
++## Deployment
++
++region: region-18
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.
+diff --git a/.toolkit/specs/service-19.md b/.toolkit/specs/service-19.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.toolkit/specs/service-19.md
+@@ -0,0 +1,12 @@
++# Service 19
++
++Owner: team-4
++
++## Deployment
++
++region: region-19
++
++## Notes
++
++This policy is reviewed quarterly. Changes require an RFC and a
++rollback plan. The service is deployed from the main branch only.

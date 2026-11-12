@@ -1,0 +1,20 @@
+diff --git a/docs/contract.md b/docs/contract.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/docs/contract.md
+@@ -0,0 +1,3 @@
++# Contract: build_user
++
++`build_user(name: str, age: int) -> dict` returns `{"name": name, "age": age}`.
+diff --git a/octk/drift_target.py b/octk/drift_target.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/octk/drift_target.py
+@@ -0,0 +1,5 @@
++"""Implementation that drifts from docs/contract.md."""
++
++
++def build_user(name, years):
++    return {"name": name, "age": years + 1}

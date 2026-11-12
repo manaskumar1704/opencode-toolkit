@@ -1,0 +1,9 @@
+{
+  "name": "simple_bug",
+  "category": "simple isolated bug",
+  "prompt": "In this repository, `tests/test_simple.py` fails. Find and fix the source bug in `octk/simple.py` so that the test passes. Do not modify test files. Run `python -m pytest tests/test_simple.py -q` once at the end to confirm, then stop.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": ["octk/simple.py"]
+}

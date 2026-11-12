@@ -1,0 +1,11 @@
+{
+  "name": "test_diagnosis",
+  "category": "test-failure diagnosis",
+  "prompt": "`tests/test_diag_source.py` fails. Find the root cause in `octk/diag_source.py` and fix it. Do not modify tests.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "octk/diag_source.py"
+  ]
+}

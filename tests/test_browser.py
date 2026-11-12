@@ -38,7 +38,7 @@ def test_summary_dedup_console_errors() -> None:
 
 def test_summary_truncates_text() -> None:
     text = summarize_snapshot(SNAPSHOT)
-    long_line = [l for l in text.splitlines() if l.startswith("  button Item 0")][0]
+    long_line = next(l for l in text.splitlines() if l.startswith("  button Item 0"))
     text_part = long_line.rsplit(" [", 1)[0]
     assert "z" * 80 not in text_part
     assert text_part.rstrip().endswith("...")
@@ -77,7 +77,7 @@ def _free_port() -> int:
 
 
 def _serve(tmp_path) -> http.server.ThreadingHTTPServer:
-    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(  # noqa: E731
+    handler = lambda *args, **kw: http.server.SimpleHTTPRequestHandler(
         *args, directory=str(tmp_path), **kw
     )
     server = http.server.ThreadingHTTPServer(("127.0.0.1", _free_port()), handler)
@@ -113,3 +113,25 @@ async def test_inspect_url_survives_signals(tmp_path) -> None:
         assert "#submit" in result.text
     finally:
         server.shutdown()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/computeMetadata/v1/",
+        "https://METADATA/",
+    ],
+)
+async def test_inspect_url_refuses_metadata_hosts(url: str) -> None:
+    with pytest.raises(ValueError, match="metadata host"):
+        await inspect_url(url)
+
+
+async def test_inspect_url_still_allows_localhost() -> None:
+    # The guard must not break local fixtures: only the host check runs here,
+    # and localhost is not on the block list.
+    from octk.runtime.browser import BLOCKED_HOSTS
+
+    assert "127.0.0.1" not in BLOCKED_HOSTS
+    assert "localhost" not in BLOCKED_HOSTS

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,12 +25,14 @@ def _roadmap_state(root: Path) -> tuple[str, str]:
         (str(e["text"]) for e in entries if e.get("status") == "~"),
         "(none in progress)",
     )
-    current_line = next((int(e["line_no"]) for e in entries if e.get("status") == "~"), 0)
+    current_line = next(
+        (int(str(e["line_no"])) for e in entries if e.get("status") == "~"), 0
+    )
     pending = next(
         (
             str(e["text"])
             for e in entries
-            if e.get("status") == " " and int(e["line_no"]) > current_line
+            if e.get("status") == " " and int(str(e["line_no"])) > current_line
         ),
         None,
     )
@@ -51,6 +53,7 @@ def _git_output(root: Path, args: list[str]) -> str:
             text=True,
             errors="replace",
             timeout=GIT_TIMEOUT_S,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"(git failed: {type(exc).__name__})"
@@ -76,7 +79,7 @@ def _latest_signal(root: Path) -> str:
     )
     ts = last.get("ts")
     stamp = (
-        datetime.fromtimestamp(float(ts), timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+        datetime.fromtimestamp(float(ts), UTC).strftime("%Y-%m-%d %H:%M:%SZ")
         if isinstance(ts, (int, float))
         else "unknown time"
     )
@@ -143,7 +146,7 @@ def generate_handoff(root: Path, out_path: Path | None = None) -> str:
         "## Resume after /clear",
         "",
         "Read `.toolkit/handoff.md`, `.toolkit/index.md`, and `.toolkit/specs/roadmap.md`.",
-        f"Resume the `[~]` task above and preserve the latest runtime signal; do not redo completed work.",
+        "Resume the `[~]` task above and preserve the latest runtime signal; do not redo completed work.",
         'Run the acceptance command before asking the user for `octk approve "<task>"`.',
         "",
     ]

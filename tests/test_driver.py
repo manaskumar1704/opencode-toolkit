@@ -1,0 +1,849 @@
+"""Factorial driver tests: arms, schedule, gates, cost honesty, execution."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from benchmarks.driver import (
+    ARMS,
+    DEFAULT_SEED,
+    AgentResult,
+    RunOutcome,
+    RunSpec,
+    StageReport,
+    apply_arm,
+    arm_flags,
+    build_schedule,
+    cost_projection,
+    dry_run,
+    evaluate_gate,
+    execute_run,
+    existing_outcome,
+    extract_token_totals,
+    extract_token_usage,
+    lock_results,
+    render_stage_report,
+    run_all_stages,
+    run_stage,
+    select_tasks,
+    stage_arms,
+)
+from benchmarks.manifest import RunManifest
+
+TASKS = [
+    {"name": "alpha", "category": "simple isolated bug", "path": "/tmp/alpha"},
+    {"name": "beta", "category": "refactor", "path": "/tmp/beta"},
+]
+
+
+# -- arms and stages -------------------------------------------------------
+
+
+def test_stage_arms_are_cumulative() -> None:
+    assert stage_arms(1) == ("A", "E")
+    assert stage_arms(2) == ("A", "B", "C", "E")
+    assert stage_arms(3) == ARMS
+    with pytest.raises(ValueError):
+        stage_arms(4)
+
+
+def test_arm_flags_match_handoff_table() -> None:
+    assert arm_flags("A") == {"octk": False, "ponytail": False, "graphify": False}
+    assert arm_flags("B") == {"octk": False, "ponytail": True, "graphify": False}
+    assert arm_flags("C") == {"octk": False, "ponytail": False, "graphify": True}
+    assert arm_flags("D") == {"octk": False, "ponytail": True, "graphify": True}
+    assert arm_flags("E") == {"octk": True, "ponytail": False, "graphify": False}
+    assert arm_flags("F") == {"octk": True, "ponytail": True, "graphify": False}
+    assert arm_flags("G") == {"octk": True, "ponytail": False, "graphify": True}
+    assert arm_flags("H") == {"octk": True, "ponytail": True, "graphify": True}
+    with pytest.raises(ValueError):
+        arm_flags("Z")
+
+
+# -- schedule --------------------------------------------------------------
+
+
+def test_schedule_covers_every_combination() -> None:
+    schedule = build_schedule(stage_arms(1), TASKS, reps=5, seed=7)
+    assert len(schedule) == 2 * 2 * 5
+    assert {spec.arm for spec in schedule} == {"A", "E"}
+    assert {spec.task for spec in schedule} == {"alpha", "beta"}
+    assert {spec.rep for spec in schedule} == {1, 2, 3, 4, 5}
+    assert sorted(spec.order for spec in schedule) == list(range(1, len(schedule) + 1))
+
+
+def test_schedule_is_deterministic_for_same_seed() -> None:
+    first = build_schedule(ARMS, TASKS, reps=5, seed=42)
+    second = build_schedule(ARMS, TASKS, reps=5, seed=42)
+    assert [spec.to_dict() for spec in first] == [spec.to_dict() for spec in second]
+
+
+def test_schedule_order_changes_with_seed() -> None:
+    first = build_schedule(ARMS, TASKS, reps=5, seed=1)
+    second = build_schedule(ARMS, TASKS, reps=5, seed=2)
+    assert [(s.arm, s.task, s.rep) for s in first] != [(s.arm, s.task, s.rep) for s in second]
+
+
+def test_schedule_rejects_fewer_than_five_reps() -> None:
+    with pytest.raises(ValueError, match="reps must be >= 5"):
+        build_schedule(ARMS, TASKS, reps=4)
+
+
+def test_schedule_rejects_empty_tasks() -> None:
+    with pytest.raises(ValueError, match="no tasks"):
+        build_schedule(ARMS, [], reps=5)
+
+
+def test_dry_run_returns_schedule_without_side_effects(tmp_path: Path) -> None:
+    schedule = dry_run(1, reps=5, seed=DEFAULT_SEED, tasks=TASKS)
+    assert len(schedule) == 20
+    assert not (tmp_path / "octk-bench").exists()
+
+
+# -- worktree arm configuration -------------------------------------------
+
+
+def test_apply_arm_disables_octk_server(tmp_path: Path) -> None:
+    (tmp_path / "opencode.json").write_text(
+        json.dumps({"mcp": {"servers": {"octk": {"type": "local"}}}}),
+        encoding="utf-8",
+    )
+
+    state = apply_arm(tmp_path, "A")
+
+    config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+    assert "octk" not in config["mcp"]["servers"]
+    assert state["flags"]["octk"] is False
+    assert any("disabled octk" in change for change in state["changed"])
+
+
+def test_apply_arm_enables_octk_server(tmp_path: Path) -> None:
+    (tmp_path / "opencode.json").write_text("{}", encoding="utf-8")
+
+    apply_arm(tmp_path, "E")
+
+    config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+    assert config["mcp"]["servers"]["octk"]["command"] == ["octk-mcp"]
+
+
+def test_apply_arm_rewrites_an_existing_octk_command(tmp_path: Path) -> None:
+    (tmp_path / "opencode.json").write_text(
+        json.dumps(
+            {
+                "mcp": {
+                    "servers": {
+                        "octk": {
+                            "type": "local",
+                            "command": ["C:\\Users\\Lenovo\\octk-mcp.EXE"],
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    apply_arm(tmp_path, "E")
+
+    config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+    assert config["mcp"]["servers"]["octk"]["command"] == ["octk-mcp"]
+
+
+def test_apply_arm_removes_ponytail_skill(tmp_path: Path) -> None:
+    skill = tmp_path / ".opencode" / "skills" / "ponytail"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: ponytail\n---\n", encoding="utf-8")
+
+    apply_arm(tmp_path, "A")
+
+    assert not skill.exists()
+
+
+def test_apply_arm_keeps_ponytail_when_enabled(tmp_path: Path) -> None:
+    skill = tmp_path / ".opencode" / "skills" / "ponytail"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: ponytail\n---\n", encoding="utf-8")
+
+    apply_arm(tmp_path, "B")
+
+    assert skill.exists()
+
+
+def test_apply_arm_removes_graphify_servers(tmp_path: Path) -> None:
+    (tmp_path / "opencode.json").write_text(
+        json.dumps({"mcp": {"servers": {"graphify": {"type": "local"}}}}),
+        encoding="utf-8",
+    )
+
+    apply_arm(tmp_path, "E")
+
+    config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+    assert "graphify" not in config["mcp"]["servers"]
+
+
+# -- token extraction ------------------------------------------------------
+
+
+def test_extract_token_totals_sums_every_step() -> None:
+    stdout = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 10,
+                            "output": 2,
+                            "reasoning": 1,
+                            "cache": {"read": 0},
+                        }
+                    },
+                }
+            ),
+            "not json",
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 250,
+                            "output": 40,
+                            "reasoning": 9,
+                            "cache": {"read": 100},
+                        }
+                    },
+                }
+            ),
+            json.dumps({"type": "text", "part": {"text": "ignored"}}),
+        ]
+    )
+
+    totals = extract_token_totals(stdout)
+
+    assert (totals.input, totals.output, totals.reasoning, totals.cache_read) == (
+        260,
+        42,
+        10,
+        100,
+    )
+
+
+def test_extract_token_usage_returns_none_when_absent() -> None:
+    assert extract_token_usage("plain text") == (None, None)
+
+
+# -- gate ------------------------------------------------------------------
+
+
+def _outcome(
+    arm: str,
+    task: str,
+    passed: bool,
+    tokens: int | None,
+    duration: float,
+    rep: int = 1,
+) -> RunOutcome:
+    manifest = RunManifest(
+        arm=arm,
+        task=task,
+        task_category="simple isolated bug",
+        tokens_input=tokens,
+        duration_s=duration,
+        correctness={"acceptance_passed": passed},
+    )
+    spec = RunSpec(arm, task, "simple isolated bug", "/tmp/x", rep, 1, 1)
+    return RunOutcome(spec, manifest, "/tmp/m.json", passed)
+
+
+def _pairs(
+    n: int = 5,
+    *,
+    a_tokens: int = 1000,
+    e_tokens: int = 700,
+    a_duration: float = 100.0,
+    e_duration: float = 90.0,
+    a_pass: bool = True,
+    e_pass: bool = True,
+) -> list[RunOutcome]:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, n + 1):
+        outcomes.append(_outcome("A", "t", a_pass, a_tokens, a_duration, rep))
+        outcomes.append(_outcome("E", "t", e_pass, e_tokens, e_duration, rep))
+    return outcomes
+
+
+def test_stage1_gate_proceeds_on_a_real_effect() -> None:
+    gate = evaluate_gate(1, _pairs())
+    assert gate.proceed is True
+    assert gate.blocking is False
+    assert "30.0%" in gate.reason
+    assert gate.effect["E"]["tokens"]["significant"] is True
+
+
+def test_stage1_gate_blocks_on_correctness_regression() -> None:
+    gate = evaluate_gate(1, _pairs(e_pass=False))
+    assert gate.proceed is False
+    assert gate.blocking is True
+    assert "correctness regression" in gate.reason
+
+
+def test_stage1_gate_refuses_without_signal() -> None:
+    gate = evaluate_gate(1, _pairs(e_tokens=1000, e_duration=100.0))
+    assert gate.proceed is False
+    assert gate.blocking is False
+    assert "no measurable efficiency signal" in gate.reason
+
+
+def test_stage1_gate_ignores_noise_that_crosses_zero() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep, e_tokens in enumerate([1100, 900, 1050, 950, 1000], start=1):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, e_tokens, 100.0, rep))
+    gate = evaluate_gate(1, outcomes)
+    assert gate.proceed is False
+    assert "no measurable efficiency signal" in gate.reason
+    assert gate.effect["E"]["tokens"]["significant"] is False
+
+
+def test_stage1_gate_rejects_a_tiny_consistent_effect() -> None:
+    # 2% fewer tokens is consistent but below the 5% threshold.
+    gate = evaluate_gate(1, _pairs(e_tokens=980, e_duration=100.0))
+    assert gate.proceed is False
+    assert "no measurable efficiency signal" in gate.reason
+
+
+def test_stage1_gate_requires_at_least_five_pairs() -> None:
+    gate = evaluate_gate(1, _pairs(n=2))
+    assert gate.proceed is False
+    assert "insufficient paired data" in gate.reason
+
+
+def test_stage1_gate_accepts_a_duration_effect_above_ten_percent() -> None:
+    gate = evaluate_gate(
+        1, _pairs(e_tokens=1000, e_duration=80.0)
+    )
+    assert gate.proceed is True
+    assert "duration" in gate.reason
+
+
+def test_stage2_gate_requires_an_external_effect() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("B", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("C", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, 500, 50.0, rep))
+    gate = evaluate_gate(2, outcomes)
+    assert gate.proceed is False
+    assert "no independent effect" in gate.reason
+
+
+def test_stage2_gate_proceeds_when_an_external_tool_helps() -> None:
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("B", "t", True, 700, 100.0, rep))
+        outcomes.append(_outcome("C", "t", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "t", True, 1000, 100.0, rep))
+    gate = evaluate_gate(2, outcomes)
+    assert gate.proceed is True
+    assert "arm B" in gate.reason
+
+
+def test_stage3_gate_always_proceeds() -> None:
+    gate = evaluate_gate(3, [_outcome("A", "t", True, 1000, 100.0)])
+    assert gate.proceed is True
+
+
+def test_gate_with_no_runs_does_not_proceed() -> None:
+    gate = evaluate_gate(1, [])
+    assert gate.proceed is False
+    assert "no valid runs" in gate.reason
+
+
+# -- cost honesty ----------------------------------------------------------
+
+
+def test_cost_unknown_before_stage1_measurement() -> None:
+    projection = cost_projection([])
+    assert projection["status"] == "UNKNOWN"
+
+
+def test_cost_measured_and_extrapolation_labelled() -> None:
+    outcomes = [
+        _outcome("A", "t", True, 1000, 100.0),
+        _outcome("E", "t", True, 800, 90.0),
+    ]
+    projection = cost_projection(outcomes, reps=5, n_tasks=8)
+    assert projection["status"] == "MEASURED"
+    assert projection["mean_tokens_input"] == 900
+    assert "extrapolation" in projection["projection"]["label"]
+    assert projection["projection"]["stage2_remaining_runs"] == 80
+
+
+# -- end-to-end execution --------------------------------------------------
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+
+
+def _make_repo(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    _git(path, "init", "-q")
+    _git(path, "config", "user.email", "t@t.com")
+    _git(path, "config", "user.name", "t")
+    (path / "README.md").write_text("hello\n", encoding="utf-8")
+    _git(path, "add", ".")
+    _git(path, "commit", "-q", "-m", "init")
+    return path
+
+
+def _make_task(path: Path) -> Path:
+    (path / "oracle").mkdir(parents=True)
+    (path / "task.json").write_text(
+        json.dumps(
+            {
+                "name": path.name,
+                "category": "simple isolated bug",
+                "prompt": "Fix broken.py so the oracle passes.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (path / "setup.patch").write_text(
+        "diff --git a/broken.py b/broken.py\n"
+        "new file mode 100644\n"
+        "index 0000000..1111111\n"
+        "--- /dev/null\n"
+        "+++ b/broken.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        "+def value():\n"
+        "+    return 1\n",
+        encoding="utf-8",
+    )
+    (path / "oracle" / "acceptance.py").write_text(
+        "from broken import value\n\n\ndef test_value():\n    assert value() == 2\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _fixing_executor(tokens_by_arm: dict[str, int] | None = None):
+    tokens_by_arm = tokens_by_arm or {}
+
+    def executor(spec: RunSpec, worktree: Path, prompt: str, timeout_s: int) -> AgentResult:
+        (worktree / "broken.py").write_text(
+            "def value():\n    return 2\n", encoding="utf-8"
+        )
+        return AgentResult(
+            stdout=json.dumps(
+                {"tokens": {"input": tokens_by_arm.get(spec.arm, 100), "output": 5}}
+            )
+            + "\n",
+            exit_code=0,
+            duration_s=1.0,
+            tokens_input=tokens_by_arm.get(spec.arm, 100),
+            tokens_output=5,
+        )
+
+    return executor
+
+
+def test_execute_run_writes_valid_manifest_and_transcript(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("A", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=_fixing_executor(),
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="2.2.6",
+    )
+
+    assert outcome.passed is True
+    assert outcome.error is None
+    assert outcome.manifest.valid, outcome.manifest.validate()
+    assert Path(outcome.manifest.transcript_path).is_file()
+    transcript = Path(outcome.manifest.transcript_path).read_text(encoding="utf-8")
+    assert '"event": "oracle"' in transcript
+    assert outcome.manifest.correctness["acceptance_passed"] is True
+    # worktree is disposable
+    assert not Path(outcome.manifest.environment_manifest["worktree"]).exists()
+
+
+def test_execute_run_records_failure_as_invalid_not_crash(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("E", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def broken_executor(spec, worktree, prompt, timeout_s):
+        return AgentResult(exit_code=1, duration_s=1.0, error="agent crashed")
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=broken_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="2.2.6",
+    )
+
+    assert outcome.passed is False
+    assert outcome.error == "agent crashed"
+    assert outcome.manifest.correctness["acceptance_passed"] is False
+
+
+def test_run_stage_writes_report_and_applies_gate(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    report = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=_fixing_executor({"A": 500, "E": 300}),
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+    )
+
+    assert len(report.outcomes) == 10
+    assert all(outcome.passed for outcome in report.outcomes)
+    assert report.gate.proceed is True
+    assert (results / "stage-1.json").is_file()
+    assert (results / "stage-1.md").is_file()
+    summary = json.loads((results / "stage-1.json").read_text(encoding="utf-8"))
+    assert summary["runs"] == 10
+
+
+def test_run_all_stages_stops_on_blocking_regression(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    def regressing_executor(spec, worktree, prompt, timeout_s):
+        if spec.arm == "E":
+            return AgentResult(exit_code=0, duration_s=1.0, tokens_input=10)
+        (worktree / "broken.py").write_text("def value():\n    return 2\n", encoding="utf-8")
+        return AgentResult(exit_code=0, duration_s=1.0, tokens_input=100)
+
+    reports = run_all_stages(
+        repo,
+        reps=5,
+        seed=3,
+        executor=regressing_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].gate.blocking is True
+
+
+def test_safe_id_cannot_escape_a_directory() -> None:
+    from benchmarks.driver import safe_id
+
+    for hostile in ("../../etc", "..", "a/b", "a\\b", "."):
+        cleaned = safe_id(hostile)
+        assert "/" not in cleaned and "\\" not in cleaned
+        assert cleaned not in {".", ".."}
+        assert cleaned
+    assert safe_id("normal-task_1") == "normal-task_1"
+
+
+def test_leaked_run_keeps_the_oracle_result_but_is_invalid(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("A", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def leaky_executor(spec, worktree, prompt, timeout_s):
+        (worktree / "broken.py").write_text("def value():\n    return 2\n", encoding="utf-8")
+        return AgentResult(
+            stdout="cat /tmp/pytest-of-user/pytest-1/oracle/acceptance.py",
+            exit_code=0,
+            duration_s=1.0,
+            tokens_input=100,
+        )
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=leaky_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.passed is True
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["oracle_leaked"]
+
+
+# -- task filter, labels, per-task effects ---------------------------------
+
+
+def test_select_tasks_filters_to_named_tasks() -> None:
+    selected = select_tasks("spec_selection")
+    assert selected is not None
+    assert [task["name"] for task in selected] == ["spec_selection"]
+
+
+def test_select_tasks_empty_means_whole_suite() -> None:
+    assert select_tasks("") is None
+    assert select_tasks(" , ") is None
+
+
+def test_select_tasks_rejects_an_unknown_name() -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        select_tasks("spec_selection,typo_task")
+    assert "typo_task" in str(excinfo.value)
+    assert "spec_selection" in str(excinfo.value)
+
+
+def test_run_stage_label_suffixes_the_report(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    report = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=_fixing_executor({"A": 500, "E": 300}),
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+        label="core",
+    )
+
+    assert report.label == "core"
+    assert (results / "stage-1-core.json").is_file()
+    assert (results / "stage-1-core.md").is_file()
+    assert not (results / "stage-1.json").exists()
+
+
+def test_report_renders_per_task_effects() -> None:
+    gate = evaluate_gate(1, _pairs(n=5, e_tokens=700))
+    report = StageReport(
+        stage=1,
+        outcomes=_pairs(n=5, e_tokens=700),
+        gate=gate,
+        cost={"status": "MEASURED"},
+        results_dir="/tmp/x",
+    )
+
+    rendered = render_stage_report(report)
+
+    assert "## Per-task effect" in rendered
+    # Positive reduction means fewer tokens than the baseline.
+    assert "| t | tokens | 5 | +30.0%" in rendered
+    assert "| t | duration | 5 | +10.0%" in rendered
+    assert "improvement" in rendered
+
+
+def test_per_task_effect_stays_empty_when_underpowered() -> None:
+    gate = evaluate_gate(1, _pairs(n=2))
+    assert gate.per_task_effect["t"]["E"]["tokens"] is None
+
+
+def test_existing_outcome_ignores_absent_and_broken_manifests(tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    (results / "manifests").mkdir(parents=True)
+    spec = RunSpec("A", "task", "simple isolated bug", "/tmp/x", 1, 1, 1)
+
+    assert existing_outcome(results, spec) is None
+
+    (results / "manifests" / "bench-A-task-r1.json").write_text("{broken")
+    assert existing_outcome(results, spec) is None
+
+
+def test_run_stage_resume_reuses_completed_runs(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    tasks = [{"name": "task", "category": "simple isolated bug", "path": str(task)}]
+
+    first = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=_fixing_executor({"A": 500, "E": 300}),
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+    )
+    assert len(first.outcomes) == 10
+
+    def must_not_run(spec, worktree, prompt, timeout_s):
+        raise AssertionError(f"resume re-ran {spec.arm} r{spec.rep}")
+
+    second = run_stage(
+        1,
+        repo,
+        reps=5,
+        seed=3,
+        executor=must_not_run,
+        results_dir=results,
+        python_executable=sys.executable,
+        tasks=tasks,
+        preflight=False,
+        resume=True,
+    )
+
+    assert len(second.outcomes) == 10
+    assert all(outcome.passed for outcome in second.outcomes)
+    assert second.gate.proceed is True
+
+
+def test_lock_results_is_reentrant_in_one_process(tmp_path: Path) -> None:
+    lock_results(tmp_path)
+    lock_results(tmp_path)  # nested stages reuse the handle
+    assert (tmp_path / ".driver.lock").is_file()
+
+
+def test_a_second_driver_is_refused(tmp_path: Path) -> None:
+    import os
+
+    lock_results(tmp_path)
+    repo = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; from pathlib import Path; "
+                "from benchmarks.driver import lock_results; "
+                "lock_results(Path(sys.argv[1]))"
+            ),
+            str(tmp_path),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(repo)},
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "another benchmark driver" in result.stderr
+
+
+def test_agent_timeout_is_invalid_not_a_failure(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("A", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def stalling_executor(spec, worktree, prompt, timeout_s):
+        return AgentResult(error="agent timed out after 1800s", duration_s=1800.0)
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=stalling_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.passed is False
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["invalid_reason"] == "agent timed out after 1800s"
+
+
+def test_agent_timeout_is_excluded_rather_than_failed(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("E", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def timing_out(spec, worktree, prompt, timeout_s):
+        return AgentResult(
+            exit_code=-1, duration_s=900.0, error="agent timed out after 900s"
+        )
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=timing_out,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["invalid_reason"].startswith("agent timed out")
+    assert outcome.passed is False
+
+
+def test_schedule_uses_each_tasks_own_rep_count() -> None:
+    """A powered task keeps its own rep count; the rest stay at the default."""
+    tasks = [
+        {"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 20},
+        {"name": "beta", "category": "c", "path": "/tmp/beta"},
+    ]
+    schedule = build_schedule(["A", "E"], tasks)
+    counts: dict[tuple[str, str], int] = {}
+    for spec in schedule:
+        counts[(spec.arm, spec.task)] = counts.get((spec.arm, spec.task), 0) + 1
+    assert counts[("A", "alpha")] == 20
+    assert counts[("E", "alpha")] == 20
+    assert counts[("A", "beta")] == 5
+    assert counts[("E", "beta")] == 5
+
+
+def test_an_explicit_rep_count_overrides_the_fixtures() -> None:
+    tasks = [
+        {"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 20},
+        {"name": "beta", "category": "c", "path": "/tmp/beta"},
+    ]
+    schedule = build_schedule(["A", "E"], tasks, reps=5)
+    assert len(schedule) == 4 * 5
+
+
+def test_a_task_cannot_ask_for_fewer_reps_than_the_floor() -> None:
+    tasks = [{"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 1}]
+    schedule = build_schedule(["A", "E"], tasks)
+    assert len(schedule) == 2 * 5
+
+
+def test_a_long_task_does_not_dominate_the_aggregate() -> None:
+    """Tasks are weighted equally, so 20 reps cannot outvote 5."""
+    from benchmarks.driver import _paired_effect
+
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 21):
+        outcomes.append(_outcome("A", "big", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "big", True, 500, 50.0, rep))
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "small", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "small", True, 1000, 100.0, rep))
+
+    effect = _paired_effect(outcomes, "A", "E", "tokens_input", 7)
+    assert effect is not None
+    # Equal task weight: (-50% + 0%) / 2 = -25%, not the pooled -40%.
+    assert effect["reduction"] == pytest.approx(0.25, abs=0.01)

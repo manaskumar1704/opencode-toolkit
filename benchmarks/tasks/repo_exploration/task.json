@@ -1,0 +1,11 @@
+{
+  "name": "repo_exploration",
+  "category": "repository exploration",
+  "prompt": "Find where the function `glance` is defined in this repository. Write the repo-relative path of the file that defines it into `ANSWER.md`, one line, nothing else.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "ANSWER.md"
+  ]
+}

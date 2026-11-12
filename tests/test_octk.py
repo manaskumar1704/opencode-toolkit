@@ -6,9 +6,9 @@ import re
 from pathlib import Path
 
 from octk import drift, sentinel
+from octk.adapters.opencode_scaffold import AGENT_DEFAULTS, AGENT_NAMES
 from octk.cli import main as cli_main
 from octk.scaffold import init_repo
-from octk.templates import AGENT_DEFAULTS, AGENT_NAMES
 
 
 def test_sentinel_upsert_preserves_user_text(tmp_path: Path) -> None:
@@ -132,3 +132,15 @@ def test_set_model_updates_frontmatter(tmp_path: Path, monkeypatch) -> None:
     after = agent.read_text(encoding="utf-8")
     assert "model: opencode-go/gpt-6-luna" in after
     assert "effort: high" in after
+
+
+def test_check_spec_drift_report_is_capped(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    classes = "\n\n".join(f"class C{i}:\n    pass" for i in range(50))
+    (tmp_path / "app.py").write_text(classes, encoding="utf-8")
+
+    result = drift.check_drift(tmp_path)
+
+    assert "undocumented in specs (50)" in result.report
+    assert "... and 30 more" in result.report
+    assert len(result.report) < 4000

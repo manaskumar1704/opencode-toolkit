@@ -1,0 +1,33 @@
+diff --git a/octk/simple.py b/octk/simple.py
+new file mode 100644
+index 0000000..0653e32
+--- /dev/null
++++ b/octk/simple.py
+@@ -0,0 +1,12 @@
++"""A tiny helper module used by the simple-bug benchmark task."""
++
++
++def last_n(items, n):
++    """Return the last ``n`` items of ``items``."""
++    if n <= 0:
++        return []
++    # Bug: off by one - slices one too many.
++    return items[-(n + 1):]
++
++
++__all__ = ["last_n"]
+diff --git a/tests/test_simple.py b/tests/test_simple.py
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/tests/test_simple.py
+@@ -0,0 +1,9 @@
++from octk.simple import last_n
++
++
++def test_last_n_basic():
++    assert last_n([1, 2, 3, 4, 5], 2) == [4, 5]
++
++
++def test_last_n_zero():
++    assert last_n([1, 2, 3], 0) == []

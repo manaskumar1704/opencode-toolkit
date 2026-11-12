@@ -1,0 +1,11 @@
+{
+  "name": "browser_issue",
+  "category": "browser issue",
+  "prompt": "The page `app/index.html` has a broken click handler. Fix the selector so the button works. Do not change the button's id.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "app/index.html"
+  ]
+}

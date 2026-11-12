@@ -1,0 +1,12 @@
+{
+  "name": "multi_file_feature",
+  "category": "multi-file feature",
+  "prompt": "Add `median(values)` to `octk/multi_stats.py` and include a `median` key in the dict returned by `octk/multi_report.summary`. Keep `mean` behaviour unchanged. Do not modify tests.",
+  "setup_patch": "setup.patch",
+  "oracle_test": "oracle/acceptance.py",
+  "acceptance_command": "python -m pytest oracle/acceptance.py -q",
+  "files_touched": [
+    "octk/multi_stats.py",
+    "octk/multi_report.py"
+  ]
+}

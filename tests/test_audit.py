@@ -61,7 +61,7 @@ CONFIG = {
 
 def test_instruct_mode_never_executes(project) -> None:
     calls = []
-    fake = lambda argv, root, allowed, timeout_s: calls.append(argv) or CommandResult("", "", 0)  # noqa: E731
+    fake = lambda argv, root, allowed, timeout_s: calls.append(argv) or CommandResult("", "", 0)
     os.utime(_write_graph(project), (NOW, NOW))
     os.utime(project / "app.py", (NOW + 1, NOW + 1))
     result = run_audit_workflow(project, CONFIG, runner=fake)
@@ -80,8 +80,8 @@ def test_instruct_fresh_text(project) -> None:
 
 def test_subprocess_stale_runs_graph_first(project) -> None:
     calls: list[list[str]] = []
-    fake = lambda argv, root, allowed, timeout_s: calls.append(list(argv)) or CommandResult("ok", "", 0)  # noqa: E731
-    which = lambda name: f"/usr/bin/{name}"  # noqa: E731
+    fake = lambda argv, root, allowed, timeout_s: calls.append(list(argv)) or CommandResult("ok", "", 0)
+    which = lambda name: f"/usr/bin/{name}"
     sub = {**CONFIG, "audit_mode": "subprocess"}
     graph = _write_graph(project)
     os.utime(graph, (NOW, NOW))
@@ -93,8 +93,8 @@ def test_subprocess_stale_runs_graph_first(project) -> None:
 
 def test_subprocess_fresh_skips_graph(project) -> None:
     calls: list[list[str]] = []
-    fake = lambda argv, root, allowed, timeout_s: calls.append(list(argv)) or CommandResult("ok", "", 0)  # noqa: E731
-    which = lambda name: f"/usr/bin/{name}"  # noqa: E731
+    fake = lambda argv, root, allowed, timeout_s: calls.append(list(argv)) or CommandResult("ok", "", 0)
+    which = lambda name: f"/usr/bin/{name}"
     sub = {**CONFIG, "audit_mode": "subprocess"}
     graph = _write_graph(project)
     os.utime(graph, (NOW + 10, NOW + 10))

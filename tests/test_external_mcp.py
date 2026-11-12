@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import octk.server as server
+from octk import server
 from octk.config import ToolkitPaths, load_config, read_json
 from octk.mcp_proxy import (
     ExternalMcpError,
