@@ -212,8 +212,11 @@ def mcp_config_json() -> dict:
     return mcp_config()
 
 
-def cmd_mcp_config(_args: argparse.Namespace) -> int:
+def cmd_mcp_config(args: argparse.Namespace) -> int:
     print(json.dumps(mcp_config_json(), indent=2))
+    if getattr(args, "json", False):
+        # Pure JSON, so it can be redirected into a config file.
+        return 0
     print(
         "\n# notes\n"
         "# - these rules stop a drifting agent, not a determined one (the agent still has shell access)\n"
@@ -565,6 +568,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_schema.set_defaults(func=cmd_standing)
 
     p_mcp = sub.add_parser("mcp-config", help="print the harness MCP config snippet")
+    p_mcp.add_argument(
+        "--json",
+        action="store_true",
+        help="emit pure JSON with no trailing notes, so it can be piped",
+    )
     p_mcp.set_defaults(func=cmd_mcp_config)
 
     p_models = sub.add_parser("models", help="list the 4 octk agents and their model/effort")

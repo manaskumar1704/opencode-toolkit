@@ -103,6 +103,9 @@ octk init
 
 # 3. Print the OpenCode config and merge it
 octk mcp-config
+
+# ...or emit pure JSON you can redirect into a config file
+octk mcp-config --json > opencode.json
 ```
 
 `octk init` creates:
@@ -305,7 +308,7 @@ Rules:
 | Command | Purpose |
 |---|---|
 | `octk init [--force]` | Scaffold `AGENTS.md`, `.toolkit/`, agents, `opencode.json` |
-| `octk mcp-config` | Print the MCP + permissions snippet |
+| `octk mcp-config [--json]` | Print the MCP + permissions snippet (`--json` = pure JSON, no notes) |
 | `octk capabilities {list,show,discover,verify,select,register}` | Registry and selector |
 | `octk providers` | Ponytail / Graphify status (detect only) |
 | `octk task start` / `task end` | Task bookkeeping and acceptance check |

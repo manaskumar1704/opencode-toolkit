@@ -18,14 +18,23 @@ the date. Unresolved items are genuinely blocking and marked **OPEN**.
 
 ## Still open
 
-None of the A5 questions remain open. The following are **implementation gaps**,
-not product questions, and are tracked in `ADR.md` and the implementation plan:
+None of the A5 questions remain open. The implementation gaps that were listed
+here have since been closed:
 
-1. Capability Selector (ADR-007).
-2. `browser_inspect` feature flag (ADR-005).
-3. `check_spec_drift` Python-only declaration (ADR-006).
-4. Adapter return type and discovery-failure reason (ADR-003, ADR-004).
-5. `available` / `requires_approval` fields (ADR-010).
-6. Remaining benchmark task categories (D4: 7 of 8 missing).
-7. External benchmark selection (D8).
-8. MCP surface ≤6 (ADR-002, approval-gated).
+1. Capability Selector (ADR-007) — implemented, `octk capabilities select`.
+2. `browser_inspect` feature flag (ADR-005) — `OCTK_BROWSER=0` drops the tool.
+3. `check_spec_drift` Python-only declaration (ADR-006) — in the tool description.
+4. Adapter return type and discovery-failure reason (ADR-003, ADR-004) — the
+   adapter emits validated records and carries a `reason`.
+5. `available` / `requires_approval` fields (ADR-010) — decided: not emitted.
+6. Benchmark task categories (D4) — all 8 fixtures implemented and verified,
+   plus a 9th (`spec_selection`) that is now part of the standard suite.
+7. External benchmark selection (D8) — Terminal-Bench 2.0 chosen; the adapter
+   is still to be built.
+
+Two items remain genuinely open:
+
+8. MCP surface ≤6 (ADR-002) — currently 8, accepted with the schema cost
+   measured rather than guessed.
+9. The Terminal-Bench 2.0 adapter — needs a container runtime, which is not
+   available in the current environment.

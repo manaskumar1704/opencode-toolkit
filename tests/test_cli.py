@@ -282,3 +282,16 @@ def test_capabilities_select_cli(cli_root: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Selected (1)" in out
     assert "review [skill]" in out
+
+
+def test_mcp_config_json_flag_emits_pure_json(cli_root: Path, capsys) -> None:
+    """The default output carries # notes, so it cannot be parsed as JSON."""
+    assert main(["mcp-config"]) == 0
+    default_out = capsys.readouterr().out
+    assert "# notes" in default_out
+
+    assert main(["mcp-config", "--json"]) == 0
+    pure_out = capsys.readouterr().out
+    parsed = json.loads(pure_out)
+    assert "mcp" in parsed
+    assert parsed["permissions"]
