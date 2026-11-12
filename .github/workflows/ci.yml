@@ -25,6 +25,12 @@ jobs:
       - name: Sync dependencies
         run: uv sync --all-groups
 
+      - name: Dependency audit
+        # `uv audit` exits non-zero when a known vulnerability is present, so
+        # this step is the gate (S-10). Verified: exit 1 on a pinned
+        # vulnerable release, exit 0 on a clean tree.
+        run: uv audit
+
       - name: Static security scan
         run: uv run --no-sync python scripts/security_scan.py
 

@@ -70,6 +70,14 @@ def _check_config(root: Path) -> dict[str, str]:
                 "warn",
                 f"external_mcps[{name!r}].command must be a non-empty string list",
             )
+    if external:
+        return _check(
+            "config_valid",
+            "pass",
+            f".toolkit/config.json is valid; {len(external)} external MCP server(s) "
+            "configured - their command is executed verbatim, so treat the config "
+            "as trusted input",
+        )
     return _check("config_valid", "pass", ".toolkit/config.json is valid")
 
 

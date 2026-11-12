@@ -18,6 +18,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "allowed_commands": ["pytest", "python", "python3", "uv"],
     "command_timeout_s": 120,
     "max_output_chars": 2500,
+    # Trusted input: each `command` is executed verbatim when the agent
+    # inspects that server. Review it like a Makefile, not like a setting.
     "external_mcps": {},
     "external_mcp_timeout_s": 30,
     "server_name": "octk",

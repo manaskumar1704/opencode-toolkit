@@ -7,8 +7,6 @@ import json
 import os
 import re
 import shlex
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -21,7 +19,10 @@ from .doctor import format_doctor, run_doctor
 from .handoff import generate_handoff
 from .metrics import MetricsStore, approx_tokens
 from .roadmap import parse_roadmap, set_status
+from .runtime import safety
 from .scaffold import init_repo
+
+CHECK_TIMEOUT_S = 600
 
 
 def get_root() -> Path:
@@ -100,8 +101,10 @@ def cmd_task(args: argparse.Namespace) -> int:
     check_cmd = args.check
     check_passed: bool | None = None
     if check_cmd:
-        check_passed = _run_check(check_cmd, paths.root)
-        print(f"check exit code 0: {check_passed}")
+        config = load_config(paths.root)
+        allowed = list(config.get("allowed_commands", []))
+        check_passed, detail = _run_check(check_cmd, paths.root, allowed)
+        print(f"check exit code 0: {check_passed} ({detail})")
     store.end_task(
         status=args.status,
         notes=args.notes,
@@ -117,18 +120,23 @@ def cmd_task(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_check(check_cmd: str, root: Path) -> bool:
+def _run_check(check_cmd: str, root: Path, allowed: list[str]) -> tuple[bool, str]:
+    """Run a verification command under the same allowlist as every other command.
+
+    This used to call ``subprocess.run`` directly, so ``--check`` could run
+    anything on PATH with no allowlist at all. It now goes through
+    ``runtime.safety.run_command`` like every other subprocess in the project.
+    """
     argv = shlex.split(check_cmd)
     if not argv:
-        return False
-    resolved = shutil.which(argv[0])
-    if resolved:
-        argv[0] = resolved
+        return False, "empty command"
     try:
-        proc = subprocess.run(argv, cwd=root, timeout=600, capture_output=True, check=False)
-        return proc.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
+        result = safety.run_command(argv, root, allowed, timeout_s=CHECK_TIMEOUT_S)
+    except safety.CommandNotAllowed as exc:
+        return False, str(exc)
+    if result.timed_out:
+        return False, f"timed out after {CHECK_TIMEOUT_S}s"
+    return result.returncode == 0, f"exit code {result.returncode}"
 
 
 def cmd_report(args: argparse.Namespace) -> int:

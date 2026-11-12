@@ -16,6 +16,12 @@ from typing import Any
 from ..sentinel import SENTINEL_END, SENTINEL_START
 
 CONFIG_REL = "opencode.json"
+
+# The gate is policy-enforced, not a sandbox. Say so wherever it is checked.
+GATE_NOTE = (
+    "; policy-enforced, not a sandbox"
+    " (see docs/v2/APPROVAL_GATE_THREAT_MODEL.md)"
+)
 AGENTS_DIR = ".opencode/agents"
 COMMANDS_DIR = ".opencode/commands"
 
@@ -214,5 +220,14 @@ def permissions_gate(root: Path) -> tuple[str, str]:
         )
     ]
     if missing:
-        return "warn", "missing deny rules: " + ", ".join(missing)
-    return "pass", "approval gate deny rules are present"
+        return (
+            "warn",
+            "missing deny rules: "
+            + ", ".join(missing)
+            + "; the agent can self-approve without them"
+            + GATE_NOTE,
+        )
+    return (
+        "pass",
+        "approval gate deny rules are present" + GATE_NOTE,
+    )

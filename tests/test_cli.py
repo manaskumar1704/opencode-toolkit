@@ -66,11 +66,23 @@ def test_task_round_trip_with_check(cli_root: Path, capsys) -> None:
     assert task["model"] == "test"
 
 
-def test_task_end_check_failure_records_false(cli_root: Path) -> None:
+def test_task_end_check_failure_records_false(cli_root: Path, capsys) -> None:
     main(["task", "start", "demo"])
     main(["task", "end", "--check", 'python -c "import sys; sys.exit(3)"'])
     task = _store(cli_root).load()["tasks"][0]
     assert task["check_passed"] is False
+
+
+def test_task_end_check_respects_the_command_allowlist(cli_root: Path, capsys) -> None:
+    """--check must not be a way around the allowlist (S-05)."""
+    marker = cli_root / "should-not-exist.txt"
+    main(["task", "start", "demo"])
+    rc = main(["task", "end", "--check", f"touch {marker}"])
+    assert rc == 0
+    assert not marker.exists(), "a non-allowlisted command was executed"
+    task = _store(cli_root).load()["tasks"][0]
+    assert task["check_passed"] is False
+    assert "not in allowed_commands" in capsys.readouterr().out
 
 
 def test_task_active_conflict_fails(cli_root: Path) -> None:

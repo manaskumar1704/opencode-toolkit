@@ -234,6 +234,13 @@ The gate is **policy-enforced**, not a sandbox: an agent with unrestricted shell
 access can still edit files. `octk doctor` checks that the OpenCode deny rules
 are present, and the README says so plainly.
 
+Full threat model — what it protects, what it does not, and the two ways it can
+be worked around — is in
+[`docs/v2/APPROVAL_GATE_THREAT_MODEL.md`](docs/v2/APPROVAL_GATE_THREAT_MODEL.md).
+One rule to follow: **approve a distinctive phrase, not a common word.**
+Approvals bind by substring, so `octk approve "fix"` authorises every roadmap
+line containing "fix".
+
 ## MCP surface — 8 tools
 
 | Tool | Purpose | Cost |
@@ -253,6 +260,15 @@ Demoted to CLI to keep the schema lean:
 - `update_roadmap` → `octk roadmap set`
 
 `OCTK_BROWSER=0` drops `browser_inspect` and its schema.
+
+### External MCP servers are trusted input
+
+`external_mcps` in `.toolkit/config.json` names servers that octk will spawn.
+The `command` array is executed verbatim — that is the point, but it means the
+config is **as trusted as the code it points at**. Review it the way you would
+review a Makefile. Only names listed there can be reached through
+`equip_external_mcp`; an unlisted name is rejected without spawning anything.
+Do not paste a config from somewhere you would not paste a shell script.
 
 ## Honest measurement model
 

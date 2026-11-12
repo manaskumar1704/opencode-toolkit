@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,12 +22,39 @@ class CommandNotAllowed(Exception):
     """Raised when a command's executable is not on the allowlist."""
 
 
+def _invoked_path(token: str) -> str | None:
+    """Return the absolute path a token would execute, or None if it cannot.
+
+    A bare name is looked up on PATH. A path is taken *literally*: symlinks
+    are not followed, so a link called ``pytest`` sitting in an unexpected
+    directory stays that link instead of becoming the allowlisted binary.
+    """
+    if os.sep in token or (os.altsep and os.altsep in token):
+        candidate = Path(token)
+        if not candidate.is_file():
+            return None
+        return os.path.normcase(os.path.abspath(str(candidate)))
+    found = shutil.which(token)
+    if not found:
+        return None
+    return os.path.normcase(os.path.abspath(found))
+
+
 def _allowed(token: str, allowed: list[str]) -> bool:
-    if token in allowed:
-        return True
-    name = os.path.basename(token)
-    stem = os.path.splitext(name)[0]
-    return name in allowed or stem in allowed
+    """True when ``token`` invokes exactly an allowlisted executable.
+
+    Comparing the invoked path rather than its basename is the whole point:
+    matching on names meant any path ending in an allowed name passed, so
+    ``/tmp/anything/pytest`` ran while only ``pytest`` was approved.
+    """
+    target = _invoked_path(token)
+    if target is None:
+        return False
+    for entry in allowed:
+        candidate = _invoked_path(entry)
+        if candidate is not None and candidate == target:
+            return True
+    return False
 
 
 def run_command(
