@@ -19,6 +19,7 @@ Rules encoded here:
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import random
@@ -390,6 +391,9 @@ def run_oracle(
     destination = worktree / "oracle"
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copy(source, destination / "acceptance.py")
+    if not (destination / "acceptance.py").is_file():
+        listing = ", ".join(sorted(p.name for p in worktree.iterdir()))
+        return False, f"oracle vanished after copy; workspace holds: {listing}"
     python = python_executable or sys.executable
     try:
         proc = subprocess.run(
@@ -463,6 +467,39 @@ class RunOutcome:
             "passed": self.passed,
             "error": self.error,
         }
+
+
+# One driver per results directory. An interrupted run can survive as an
+# orphan; two drivers then share workspace paths, and create_workspace deletes
+# the directory from under the other run. Measured: two runs failed with
+# ModuleNotFoundError because a second driver had rebuilt their workspace.
+_LOCK_HANDLES: dict[str, object] = {}
+
+
+def lock_results(results: Path) -> None:
+    """Take an exclusive lock, or exit with a clear message.
+
+    Locks are per process: nested stage runs (``run_all_stages``) reuse the
+    handle already held for the same directory.
+    """
+    results.mkdir(parents=True, exist_ok=True)
+    key = str(results.resolve())
+    if key in _LOCK_HANDLES:
+        return
+    path = results / ".driver.lock"
+    # The handle owns the lock for the process lifetime; closing it releases.
+    handle = open(path, "w", encoding="utf-8")  # noqa: SIM115
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        raise SystemExit(
+            f"another benchmark driver holds {path}; wait for it to finish "
+            "(or kill it) before starting a second run"
+        )
+    handle.write(f"{os.getpid()}\n")
+    handle.flush()
+    _LOCK_HANDLES[key] = handle
 
 
 def existing_outcome(results: Path, spec: RunSpec) -> RunOutcome | None:
@@ -621,7 +658,12 @@ def execute_run(
         # harness can over-flag rather than silently pass.
         evidence = tool_input_text(agent_text) or agent_text
         leaks = oracle_leaks(evidence, acceptance_text, oracle_rel, visible_text)
-        valid = not leaks
+        # A harness stall is not evidence about the agent. With a 30 minute
+        # ceiling and tasks that normally finish in under three, a timeout
+        # means infrastructure, so the run is excluded rather than failed.
+        timed_out = bool(error and error.startswith("agent timed out"))
+        invalid_reason = error if timed_out else None
+        valid = not leaks and invalid_reason is None
         # Validity is a separate channel: never overwrite the oracle result.
         # A leaked run is excluded from aggregates, but its correctness is
         # still recorded honestly.
@@ -649,6 +691,7 @@ def execute_run(
             correctness={
                 "acceptance_passed": passed,
                 "valid": valid,
+                "invalid_reason": invalid_reason,
                 "oracle_leaked": leaks,
                 "oracle_exit_code": 0 if passed else 1,
                 "agent_exit_code": agent.exit_code,
@@ -1042,6 +1085,7 @@ def run_stage(
     several blocks (a powered task, then the rest) without clobbering.
     """
     results = results_dir or RESULTS_DIR
+    lock_results(results)
     if preflight:
         outcome = run_preflight(repo)
         if not outcome.ok:

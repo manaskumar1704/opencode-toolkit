@@ -18,6 +18,7 @@ This module builds a standalone copy instead:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -27,7 +28,21 @@ from typing import Any
 
 from benchmarks.runner import safe_id
 
-WORKSPACE_PARENT = Path.home() / ".cache" / "octk-bench"
+DEFAULT_WORKSPACE_PARENT = Path.home() / ".cache" / "octk-bench"
+
+
+def workspace_parent() -> Path:
+    """Where run workspaces live.
+
+    ``OCTK_BENCH_WORKSPACE`` overrides it. The test suite points this at its
+    own temp dir: tests and a live benchmark otherwise share names like
+    ``bench-A-task-r1``, and one process recreates the workspace while the
+    other is running its oracle. Measured: an intermittent
+    "file or directory not found: oracle/acceptance.py".
+    """
+    override = os.environ.get("OCTK_BENCH_WORKSPACE")
+    return Path(override) if override else DEFAULT_WORKSPACE_PARENT
+
 
 # Never copy these into a workspace: VCS metadata (would link to the host),
 # the benchmark harness itself (contains the oracles), and local caches.
@@ -52,7 +67,7 @@ def create_workspace(
     repo: Path, run_id: str, parent: Path | None = None
 ) -> Path:
     """Copy ``repo`` into a standalone workspace and commit the baseline."""
-    root = parent or WORKSPACE_PARENT
+    root = parent or workspace_parent()
     root.mkdir(parents=True, exist_ok=True)
     target = root / safe_id(run_id)
     if target.exists():

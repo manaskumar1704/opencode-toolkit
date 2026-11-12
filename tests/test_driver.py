@@ -26,6 +26,7 @@ from benchmarks.driver import (
     existing_outcome,
     extract_token_totals,
     extract_token_usage,
+    lock_results,
     render_stage_report,
     run_all_stages,
     run_stage,
@@ -716,3 +717,84 @@ def test_run_stage_resume_reuses_completed_runs(tmp_path: Path) -> None:
     assert len(second.outcomes) == 10
     assert all(outcome.passed for outcome in second.outcomes)
     assert second.gate.proceed is True
+
+
+def test_lock_results_is_reentrant_in_one_process(tmp_path: Path) -> None:
+    lock_results(tmp_path)
+    lock_results(tmp_path)  # nested stages reuse the handle
+    assert (tmp_path / ".driver.lock").is_file()
+
+
+def test_a_second_driver_is_refused(tmp_path: Path) -> None:
+    import os
+
+    lock_results(tmp_path)
+    repo = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; from pathlib import Path; "
+                "from benchmarks.driver import lock_results; "
+                "lock_results(Path(sys.argv[1]))"
+            ),
+            str(tmp_path),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(repo)},
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "another benchmark driver" in result.stderr
+
+
+def test_agent_timeout_is_invalid_not_a_failure(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("A", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def stalling_executor(spec, worktree, prompt, timeout_s):
+        return AgentResult(error="agent timed out after 1800s", duration_s=1800.0)
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=stalling_executor,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.passed is False
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["invalid_reason"] == "agent timed out after 1800s"
+
+
+def test_agent_timeout_is_excluded_rather_than_failed(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    task = _make_task(tmp_path / "task")
+    results = tmp_path / "results"
+    spec = RunSpec("E", "task", "simple isolated bug", str(task), 1, 1, 1)
+
+    def timing_out(spec, worktree, prompt, timeout_s):
+        return AgentResult(
+            exit_code=-1, duration_s=900.0, error="agent timed out after 900s"
+        )
+
+    outcome = execute_run(
+        spec,
+        repo,
+        executor=timing_out,
+        results_dir=results,
+        python_executable=sys.executable,
+        opencode_version="test",
+    )
+
+    assert outcome.manifest.correctness["valid"] is False
+    assert outcome.manifest.correctness["invalid_reason"].startswith("agent timed out")
+    assert outcome.passed is False
