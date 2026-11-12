@@ -28,7 +28,7 @@ smoothed over — see §5.
 | **Large-context selection** (`spec_selection`) | **E uses 38.5% fewer input tokens** (95% CI +4.5%..+82.4%, n=20) and is **73.3% faster** (CI +0.5%..+187.0%, n=20) |
 | **Worst case, large-context block** | A peaked at **37,203 tokens / 286s**. No E run exceeded **8,598 tokens / 11.4s** |
 | **Worst case, core block** | Both arms have heavy tails. E's worst run is **89,610 tokens / 543s**; A's largest is 36,488 tokens (max duration 288.8s, a different run). That single E run carries its mean |
-| **Small-edit block** (8 core tasks) | **No measurable signal.** Tokens −13.1% (CI −71.1%..+30.4%), duration −29.4% (CI −161.7%..+61.2%), n=32 paired |
+| **Small-edit block** (8 core tasks) | **No measurable signal.** Tokens −17.7% (CI −87.9%..+30.0%), duration −15.1% (CI −188.2%..+120.1%), n=32 paired |
 | **Gate** | Block 1a: **proceed** (CI excludes zero, clears threshold). Block 1b: **no proceed** — no efficiency signal, but **not blocking**: zero correctness regressions |
 
 So the thesis is supported where the baseline would otherwise have to acquire a
@@ -101,8 +101,8 @@ agent behaviour — see §6. It must not be quoted.
 
 | arm | metric | n | reduction | 95% CI | verdict |
 |---|---|---:|---:|---|---|
-| E | tokens | 32 | −13.1% | −71.1%..+30.4% | noise |
-| E | duration | 32 | −29.4% | −161.7%..+61.2% | noise |
+| E | tokens | 32 | −17.7% | −87.9%..+30.0% | noise |
+| E | duration | 32 | −15.1% | −188.2%..+120.1% | noise |
 
 Direction depends on the statistic and on one run. The token **mean** favours A
 (9,808 → 11,519, +17.4% for E) while the **median** favours E (6,328 → 5,690,
@@ -135,6 +135,36 @@ project exists to avoid.
 The other five tasks show `insufficient data` for a mundane reason: pairing is
 per rep, and missing cells leave only 3–4 matched pairs. That is a coverage
 problem, not a null result.
+
+### The standard suite, and the aggregate it nearly got wrong
+
+`spec_selection` is now a **permanent member of the standard suite**, not a
+special block. Each fixture declares its own rep count — 20 for
+`spec_selection`, 5 for the rest — so one command runs the powered design:
+
+```bash
+uv run --no-sync python -m benchmarks.driver --stage 1
+```
+
+That raised a question the old design never had to answer: with 20 reps on one
+task and 5 on the others, **how should the 9 tasks be pooled?** The obvious
+answer — average every pair — hands the headline to the task with the most
+pairs. `spec_selection` holds 40 of the suite's 104 pairs.
+
+| Pooling | 9-task aggregate, tokens |
+|---|---:|
+| Every pair weighted equally (what a pooled bootstrap does) | **+6.5%** — reads as a win |
+| Every **task** weighted equally (what the gate now does) | **−11.6%** — reads as noise |
+
+The pooled number would have published a headline win that exists only because
+one task was measured twenty times. The gate now resamples **tasks** with
+replacement and then reps within each task, so each task carries the same
+weight in the pooled figure. Per-task effects were always reported; this
+fixes the number that would have been quoted.
+
+The full 9-task suite currently reads: tokens −11.6% (95% CI −74.4%..+32.3%,
+n=52), duration −6.6% (CI −165.9%..+110.6%) — noise, with the one strong
+effect living in `spec_selection` where it belongs.
 
 ---
 
@@ -173,10 +203,11 @@ document regenerated; no verdict above depends on the missing cells.
 
 ## 5. Threats to validity
 
-- **Asymmetric reps.** `spec_selection` has 20 pairs, the core tasks 5. The
-  powered block is the only one that can resolve a small effect, and it was
+- **Asymmetric reps.** `spec_selection` has 20 pairs, the other tasks 5. The
+  powered task is the only one that can resolve a small effect, and it was
   chosen because that is where variance was highest — which also makes it the
-  block most favourable to the hypothesis. Both facts are true at once.
+  task most favourable to the hypothesis. Both facts are true at once. The
+  aggregate is weighted per task, not per pair, so it cannot ride on it.
 - **One model, one harness.** `opencode-go/beam-free` at `high` effort. Nothing
   here generalises to another model without re-running.
 - **Free-tier quota.** The cohort is rate-limited and intermittently stalls.
@@ -236,16 +267,16 @@ checking whether the claimed runs still existed on disk.
 ## 8. Reproduce
 
 ```bash
-# powered block (20 reps) — already complete
+# the standard suite: 9 tasks, each at its own rep count (20 / 5).
+# --resume picks up the 4 missing cells when quota allows.
+uv run --no-sync python -m benchmarks.driver --stage 1 --resume
+
+# a single task, at any power
 uv run --no-sync python -m benchmarks.driver --stage 1 \
   --tasks spec_selection --reps 20 --label spec
 
-# core block — resumes the 4 missing cells when quota allows
-uv run --no-sync python -m benchmarks.driver --stage 1 \
-  --tasks architecture_drift,browser_issue,capability_overlap,multi_file_feature,refactor,repo_exploration,simple_bug,test_diagnosis \
-  --reps 5 --label core --resume
-
-# regenerate this report from manifests, without spending a model call
+# regenerate a report from existing manifests, without spending a model call
+PYTHONPATH=. uv run --no-sync python scripts/bench_evidence.py report --label standard
 PYTHONPATH=. uv run --no-sync python scripts/bench_evidence.py report --label core \
   --tasks architecture_drift,browser_issue,capability_overlap,multi_file_feature,refactor,repo_exploration,simple_bug,test_diagnosis
 ```

@@ -111,27 +111,50 @@ class RunSpec:
         return asdict(self)
 
 
+def task_reps(task: dict[str, Any], default: int) -> int:
+    """How many reps a task asks for.
+
+    A fixture may raise its own floor - ``spec_selection`` needs 20 to resolve
+    a small effect - while the rest of the suite runs at 5. The floor is
+    ``MIN_REPS`` so no task can silently drop below the handoff requirement.
+    """
+    try:
+        value = int(task.get("reps", default))
+    except (TypeError, ValueError):
+        return default
+    return max(value, MIN_REPS)
+
+
 def build_schedule(
     arms: Iterable[str],
     tasks: Sequence[dict[str, Any]],
-    reps: int = DEFAULT_REPS,
+    reps: int | None = None,
     seed: int = DEFAULT_SEED,
 ) -> list[RunSpec]:
     """Build a seeded, randomised run queue.
 
+    ``reps`` overrides every task. When it is None each task uses the count in
+    its own fixture, so the standard suite can run one task at higher power
+    without a separate "block" that has to be merged by hand afterwards.
+
     The full cross-product is shuffled once; ``order`` is then assigned 1..N.
     Same inputs + same seed always produce the same queue.
     """
-    if reps < MIN_REPS:
-        raise ValueError(f"reps must be >= {MIN_REPS} (handoff D3); got {reps}")
     if not tasks:
         raise ValueError("no tasks supplied")
+
+    counts: list[tuple[dict[str, Any], int]] = []
+    for task in tasks:
+        count = int(reps) if reps is not None else task_reps(task, DEFAULT_REPS)
+        if count < MIN_REPS:
+            raise ValueError(f"reps must be >= {MIN_REPS} (handoff D3); got {count}")
+        counts.append((task, count))
 
     combos: list[tuple[str, dict[str, Any], int]] = [
         (arm, task, rep)
         for arm in sorted(arms)
-        for task in tasks
-        for rep in range(1, reps + 1)
+        for task, count in counts
+        for rep in range(1, count + 1)
     ]
     random.Random(seed).shuffle(combos)
 
@@ -776,6 +799,32 @@ def _bootstrap_ci(diffs: Sequence[float], seed: int) -> tuple[float, float]:
     return low, high
 
 
+def _task_balanced_ci(
+    groups: Sequence[Sequence[float]], seed: int
+) -> tuple[float, float]:
+    """95% CI for the mean of per-task means, resampling tasks then reps.
+
+    Tasks carry different numbers of pairs, so a flat bootstrap over all pairs
+    would let the task with the most reps decide the aggregate. This samples
+    tasks with replacement and then reps within each sampled task, which gives
+    every task the same weight in the pooled number.
+    """
+    rng = random.Random(seed)
+    n_tasks = len(groups)
+    means: list[float] = []
+    for _ in range(BOOTSTRAP_SAMPLES):
+        drawn = [rng.choice(groups) for _ in range(n_tasks)]
+        task_means = []
+        for group in drawn:
+            resampled = rng.choices(group, k=len(group))
+            task_means.append(sum(resampled) / len(resampled))
+        means.append(sum(task_means) / len(task_means))
+    means.sort()
+    low = means[int(0.025 * BOOTSTRAP_SAMPLES)]
+    high = means[int(0.975 * BOOTSTRAP_SAMPLES) - 1]
+    return low, high
+
+
 def _paired_effect(
     outcomes: Sequence[RunOutcome],
     baseline: str,
@@ -790,6 +839,7 @@ def _paired_effect(
     """
     index = {(o.spec.task, o.spec.rep, o.spec.arm): o for o in outcomes}
     pairs: list[tuple[float, float]] = []
+    by_task: dict[str, list[tuple[float, float]]] = {}
     for (task, rep, arm), outcome in index.items():
         if arm != candidate:
             continue
@@ -805,6 +855,7 @@ def _paired_effect(
         if a is None or b is None:
             continue
         pairs.append((float(a), float(b)))
+        by_task.setdefault(task, []).append((float(a), float(b)))
 
     if len(pairs) < MIN_PAIRS:
         return None
@@ -812,7 +863,22 @@ def _paired_effect(
     diffs = [b - a for a, b in pairs]
     mean_base = statistics.mean(a for a, _ in pairs)
     mean_diff = statistics.mean(diffs)
-    low, high = _bootstrap_ci(diffs, seed)
+    if len(by_task) > 1:
+        # Equal task weight: mean of the per-task means, not mean of the pairs.
+        per_task_diff = [
+            statistics.mean(b - a for a, b in group) for group in by_task.values()
+        ]
+        per_task_base = [
+            statistics.mean(a for a, _ in group) for group in by_task.values()
+        ]
+        mean_diff = statistics.mean(per_task_diff)
+        mean_base = statistics.mean(per_task_base)
+        diff_groups = [
+            [b - a for a, b in group] for group in by_task.values()
+        ]
+        low, high = _task_balanced_ci(diff_groups, seed)
+    else:
+        low, high = _bootstrap_ci(diffs, seed)
     reduction = (-mean_diff / mean_base) if mean_base else 0.0
     reduction_low = (-high / mean_base) if mean_base else 0.0
     reduction_high = (-low / mean_base) if mean_base else 0.0
@@ -998,8 +1064,8 @@ def evaluate_gate(
 def cost_projection(
     outcomes: Sequence[RunOutcome],
     *,
-    reps: int = DEFAULT_REPS,
-    n_tasks: int = 8,
+    reps: int | None = None,
+    n_tasks: int | None = None,
 ) -> dict[str, Any]:
     """Measured Stage 1 cost, or UNKNOWN. Extrapolation is labelled as such."""
     stage1 = [o for o in outcomes if o.spec.arm in stage_arms(1)]
@@ -1015,8 +1081,19 @@ def cost_projection(
 
     mean_tokens = statistics.mean(o.manifest.tokens_input or 0 for o in measured)
     mean_duration = statistics.mean(o.manifest.duration_s or 0.0 for o in measured)
-    remaining_stage2 = 2 * n_tasks * reps
-    remaining_stage3 = 4 * n_tasks * reps
+    # Reps can differ per task now, so the projection counts the reps that
+    # were actually run rather than assuming a flat rate.
+    if reps is not None and n_tasks is not None:
+        total_reps = n_tasks * reps
+    else:
+        per_task_reps: dict[str, int] = {}
+        for outcome in stage1:
+            per_task_reps[outcome.spec.task] = max(
+                per_task_reps.get(outcome.spec.task, 0), outcome.spec.rep
+            )
+        total_reps = sum(per_task_reps.values())
+    remaining_stage2 = 2 * total_reps
+    remaining_stage3 = 4 * total_reps
     return {
         "status": "MEASURED",
         "stage1_runs": len(stage1),
@@ -1067,7 +1144,7 @@ def run_stage(
     stage: int,
     repo: Path,
     *,
-    reps: int = DEFAULT_REPS,
+    reps: int | None = None,
     seed: int = DEFAULT_SEED,
     executor: Executor | None = None,
     results_dir: Path | None = None,
@@ -1145,7 +1222,7 @@ def run_all_stages(
     repo: Path,
     *,
     start_stage: int = 1,
-    reps: int = DEFAULT_REPS,
+    reps: int | None = None,
     seed: int = DEFAULT_SEED,
     executor: Executor | None = None,
     results_dir: Path | None = None,
@@ -1278,7 +1355,7 @@ def render_schedule(schedule: Sequence[RunSpec]) -> str:
 def dry_run(
     stage: int,
     *,
-    reps: int = DEFAULT_REPS,
+    reps: int | None = None,
     seed: int = DEFAULT_SEED,
     tasks: Sequence[dict[str, Any]] | None = None,
 ) -> list[RunSpec]:
@@ -1318,7 +1395,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Run the OCTK factorial benchmark (handoff D3).",
     )
     parser.add_argument("--stage", default="1", choices=["1", "2", "3", "all"])
-    parser.add_argument("--reps", type=int, default=DEFAULT_REPS)
+    parser.add_argument(
+        "--reps",
+        type=int,
+        default=None,
+        help=(
+            "override the rep count for every task; by default each task uses "
+            "its own count from its fixture (spec_selection runs 20, the rest 5)"
+        ),
+    )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--results-dir", default=None)
     parser.add_argument(

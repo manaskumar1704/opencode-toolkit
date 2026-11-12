@@ -1,8 +1,9 @@
 # OCTK v2 — Benchmark Plan
 
-**Status:** harness implemented, runs not executed
+**Status:** harness implemented, Stage 1 executed (see
+[`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md))
 **Primary evidence:** the controlled internal suite
-**Secondary check:** one external benchmark (not yet selected)
+**Secondary check:** Terminal-Bench 2.0 (selected, adapter not built)
 
 ---
 
@@ -60,11 +61,21 @@ invalidates the comparison. `medium`/`max` are separate cohorts.
 
 ### Staged gates
 
-| Stage | Arms | Runs (8 cat × 5 reps) | Proceed only if |
+| Stage | Arms | Runs | Proceed only if |
 |---|---|---:|---|
-| 1 | A, E | 80 | Correctness non-negative and an efficiency signal |
-| 2 | + B, C | 160 cumulative | External tools show independent effect |
-| 3 | + D, F, G, H | 320 cumulative | Interaction effects plausible |
+| 1 | A, E | 120 (9 tasks: 8 at 5 reps, `spec_selection` at 20) | Correctness non-negative and an efficiency signal |
+| 2 | + B, C | 200 cumulative | External tools show independent effect |
+| 3 | + D, F, G, H | 360 cumulative | Interaction effects plausible |
+
+**Rep counts are per task.** A fixture may declare its own `reps` (the floor is
+5); `--reps` overrides every task. `spec_selection` runs at 20 because it is
+the only task whose effect was small enough to need the power.
+
+**Aggregation is per task, not per pair.** The gate resamples tasks with
+replacement and then reps within each task, so a task measured 20 times cannot
+outvote one measured 5 times. Pooling pairs instead would have reported the
+9-task aggregate as +6.5% instead of −11.6% — a win produced entirely by
+weighting.
 
 **Stop rule:** a correctness regression in Stage 1 stops the run until fixed.
 Correctness is a hard gate.
@@ -86,7 +97,7 @@ estimate is published before then.
 | 6 | Browser issue | `browser_issue` | implemented |
 | 7 | Architecture drift | `architecture_drift` | implemented |
 | 8 | Capability overlap | `capability_overlap` | implemented |
-| 9 | Large-context selection | `spec_selection` | implemented (pilot) |
+| 9 | Large-context selection | `spec_selection` | implemented, 20 reps |
 
 Each fixture: `task.json`, `setup.patch`, hidden `oracle/acceptance.py`.
 
@@ -198,7 +209,7 @@ result.
 
 ## 10. Cost risk
 
-- 320 runs at 5 reps is the full design; Stage 1 is 80.
+- 360 runs is the full design (9 tasks, `spec_selection` at 20 reps); Stage 1 is 120.
 - Free-model rate limits may force gaps; record them, do not hide them.
 - Browser tasks require Chromium and add setup cost.
 - Graphify cold indexing is measured separately from warm queries.
@@ -209,8 +220,8 @@ result.
 
 Stage 1 has been executed: **112 valid runs, 112/112 correct**. The powered
 `spec_selection` block shows a real effect (38.5% fewer tokens, CI
-+4.5%..+82.4%, n=20); the 8 small-edit tasks show none (tokens −13.1%, CI
-−71.1%..+30.4%). The core block is partial: 4 provider-stall exclusions and 4
++4.5%..+82.4%, n=20); the 8 small-edit tasks show none (tokens −17.7%, CI
+−87.9%..+30.0%). The core block is partial: 4 provider-stall exclusions and 4
 cells awaiting quota. Full numbers in
 [`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md).
 

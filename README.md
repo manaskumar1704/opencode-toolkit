@@ -130,7 +130,7 @@ Gate: paired bootstrap, 5,000 resamples, minimum 5% token or 10% duration effect
 |---|---|
 | Correctness | **112 / 112 valid runs passed.** No task regressed |
 | Large-context selection (n=20) | **38.5% fewer tokens** (CI +4.5%..+82.4%), **73.3% faster** (CI +0.5%..+187.0%) |
-| Small-edit tasks (n=32 paired) | **No signal.** Tokens −13.1% (CI −71.1%..+30.4%) |
+| Small-edit tasks (n=32 paired) | **No signal.** Tokens −17.7% (CI −87.9%..+30.0%) |
 | Worst case, large-context block | A: 37,203 tokens · 286s — E: **8,598 tokens · 11.4s** |
 | Worst case, small-edit block | E: 89,610 tokens / 543s (one run) — A: 36,488 tokens, 288.8s max duration |
 
@@ -154,7 +154,7 @@ expensive search, and the expensive search is what blows up the worst case.
 ### The block that does not clear it
 
 Eight small-repo tasks, 5 reps per arm: no measurable effect (tokens
-−13.1%, CI −71.1%..+30.4%). Four runs were excluded as provider stalls, four
+−17.7%, CI −87.9%..+30.0%). Four runs were excluded as provider stalls, four
 cells never ran before the free-tier quota ran out. **Reported as partial, not
 as a win.**
 
@@ -163,6 +163,20 @@ The mean is misleading at this sample size: one E run burned 89,610 tokens on
 median favours E (6,328 → 5,690). Drop that single run and the means are
 9,287 vs 9,808. When a task is small enough to finish from first principles, a
 context tool has little to save — and either arm can still have a bad run.
+
+### The aggregate that nearly lied
+
+`spec_selection` now runs at 20 reps inside the standard suite; the rest run
+at 5. That hands the headline to whoever has the most pairs — and
+`spec_selection` holds 40 of the suite's 104.
+
+| How the 9 tasks are pooled | Aggregate, tokens |
+|---|---:|
+| Every pair weighted equally | **+6.5%** — looks like a win |
+| Every **task** weighted equally | **−11.6%** — noise, as it should be |
+
+The pooled figure would have published a win that exists only because one task
+was measured twenty times. The gate now resamples tasks, not pairs.
 
 ### What we learned
 

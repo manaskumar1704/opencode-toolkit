@@ -798,3 +798,52 @@ def test_agent_timeout_is_excluded_rather_than_failed(tmp_path: Path) -> None:
     assert outcome.manifest.correctness["valid"] is False
     assert outcome.manifest.correctness["invalid_reason"].startswith("agent timed out")
     assert outcome.passed is False
+
+
+def test_schedule_uses_each_tasks_own_rep_count() -> None:
+    """A powered task keeps its own rep count; the rest stay at the default."""
+    tasks = [
+        {"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 20},
+        {"name": "beta", "category": "c", "path": "/tmp/beta"},
+    ]
+    schedule = build_schedule(["A", "E"], tasks)
+    counts: dict[tuple[str, str], int] = {}
+    for spec in schedule:
+        counts[(spec.arm, spec.task)] = counts.get((spec.arm, spec.task), 0) + 1
+    assert counts[("A", "alpha")] == 20
+    assert counts[("E", "alpha")] == 20
+    assert counts[("A", "beta")] == 5
+    assert counts[("E", "beta")] == 5
+
+
+def test_an_explicit_rep_count_overrides_the_fixtures() -> None:
+    tasks = [
+        {"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 20},
+        {"name": "beta", "category": "c", "path": "/tmp/beta"},
+    ]
+    schedule = build_schedule(["A", "E"], tasks, reps=5)
+    assert len(schedule) == 4 * 5
+
+
+def test_a_task_cannot_ask_for_fewer_reps_than_the_floor() -> None:
+    tasks = [{"name": "alpha", "category": "c", "path": "/tmp/alpha", "reps": 1}]
+    schedule = build_schedule(["A", "E"], tasks)
+    assert len(schedule) == 2 * 5
+
+
+def test_a_long_task_does_not_dominate_the_aggregate() -> None:
+    """Tasks are weighted equally, so 20 reps cannot outvote 5."""
+    from benchmarks.driver import _paired_effect
+
+    outcomes: list[RunOutcome] = []
+    for rep in range(1, 21):
+        outcomes.append(_outcome("A", "big", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "big", True, 500, 50.0, rep))
+    for rep in range(1, 6):
+        outcomes.append(_outcome("A", "small", True, 1000, 100.0, rep))
+        outcomes.append(_outcome("E", "small", True, 1000, 100.0, rep))
+
+    effect = _paired_effect(outcomes, "A", "E", "tokens_input", 7)
+    assert effect is not None
+    # Equal task weight: (-50% + 0%) / 2 = -25%, not the pooled -40%.
+    assert effect["reduction"] == pytest.approx(0.25, abs=0.01)

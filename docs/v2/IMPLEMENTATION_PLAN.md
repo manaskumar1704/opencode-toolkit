@@ -145,7 +145,7 @@ the durable record.
 - [x] Isolation repaired: standalone workspace, bwrap host mask, oracle
       exclusion, `--standalone` server, leak detection (S-12/S-13).
 - [x] Execute Stage 1 core block (8 tasks, 5 reps): 72/72 valid runs correct,
-      **no efficiency signal** (tokens −13.1%, CI −71.1%..+30.4%). Partial:
+      **no efficiency signal** (tokens −17.7%, CI −87.9%..+30.0%). Partial:
       4 provider-stall exclusions, 4 cells unrun. See `BENCHMARK_RESULTS.md`.
 - [x] Power the large-context task (`spec_selection`, 20 reps/arm): 40/40
       correct; **−38.5% tokens** (CI +4.5%..+82.4%) and −73.3% duration.

@@ -150,7 +150,7 @@ Build: setuptools ≥75. Python: **≥3.11**.
 | `browser_inspect` always exposed | Resolved | `OCTK_BROWSER=0` drops the tool (ADR-005) |
 | Adapter returns raw dicts | Resolved | Adapters emit validated `CapabilityRecord` (ADR-003) |
 | Benchmark suite incomplete (1 of 8 categories) | Resolved | All 8 fixtures implemented and verified (oracle fails before fix, passes after) |
-| **Efficiency signal is task-dependent** | **Medium** | 112 valid runs, 112/112 correct. `spec_selection` at n=20: −38.5% tokens (CI +4.5%..+82.4%), −73.3% duration. 8 small-edit tasks: −13.1% (CI crosses zero). Claim only the large-context result; see `BENCHMARK_RESULTS.md` |
+| **Efficiency signal is task-dependent** | **Medium** | 112 valid runs, 112/112 correct. `spec_selection` at n=20: −38.5% tokens (CI +4.5%..+82.4%), −73.3% duration. 8 small-edit tasks: −17.7% (CI crosses zero). Claim only the large-context result; see `BENCHMARK_RESULTS.md` |
 | Large-context case | Resolved | `spec_selection` powered to 20 reps/arm; CI excludes zero and clears the 5% threshold |
 | Core block incomplete | Medium | 4 runs excluded as provider 429 stalls, 4 cells unrun. `--resume` completes it; no published verdict depends on them |
 | No external benchmark selected | Resolved | Terminal-Bench 2.0 chosen; adapter not built |
