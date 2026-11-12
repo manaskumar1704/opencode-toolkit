@@ -144,11 +144,14 @@ the durable record.
 - [x] Randomised run order, ≥5 reps, transcript capture.
 - [x] Isolation repaired: standalone workspace, bwrap host mask, oracle
       exclusion, `--standalone` server, leak detection (S-12/S-13).
-- [x] Execute Stage 1 (80 runs): 80/80 correct, **no efficiency signal**;
-      E +21.3% tokens, 49.8% slower. See `BENCHMARK_RESULTS.md`.
-- [x] Add a large-context task (`spec_selection`, 20 specs). Pilot: 5/5
-      both arms; −17.4% tokens (CI crosses zero). Underpowered.
-- [ ] Stage 2 blocked until a real effect exists.
+- [x] Execute Stage 1 core block (8 tasks, 5 reps): 72/72 valid runs correct,
+      **no efficiency signal** (tokens −13.1%, CI −71.1%..+30.4%). Partial:
+      4 provider-stall exclusions, 4 cells unrun. See `BENCHMARK_RESULTS.md`.
+- [x] Power the large-context task (`spec_selection`, 20 reps/arm): 40/40
+      correct; **−38.5% tokens** (CI +4.5%..+82.4%) and −73.3% duration.
+      First result to clear the gate.
+- [ ] Resume the 4 missing core cells once provider quota resets.
+- [ ] Stage 2 proceeds on the large-context result; the core block stays neutral.
 
 ### R-3 External benchmark ✅ (selected)
 

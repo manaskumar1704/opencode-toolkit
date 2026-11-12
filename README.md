@@ -15,11 +15,12 @@ the tools you already have, loads detail only when a task needs it, gates
 consequential actions behind a human, and measures what actually happened.
 
 > [!IMPORTANT]
-> **We do not claim token savings.** In our 80-run benchmark (2026-11-11),
-> OCTK kept correctness at **80/80** but used **21% more input tokens** and was
-> **50% slower** than the same agent without it. The confidence interval for
-> tokens crosses zero. Full numbers, method, and the architecture-vs-
-> implementation breakdown: [`docs/v2/BENCHMARK_RESULTS.md`](docs/v2/BENCHMARK_RESULTS.md).
+> **Where the numbers are, and where they aren't.** Across 112 valid runs,
+> OCTK kept correctness at **112/112** and cut input tokens by **38.5%**
+> (95% CI +4.5%..+82.4%) on large-context selection — and showed **no signal**
+> on small single-file edits. Both results are published, including the four
+> runs we had to exclude. Full method and numbers:
+> [`docs/v2/BENCHMARK_RESULTS.md`](docs/v2/BENCHMARK_RESULTS.md).
 
 ---
 
@@ -120,54 +121,56 @@ octk approve "build-login"   # human terminal only
 
 ## Benchmark: what we measured
 
-**Stage 1** — 8 task categories × 2 arms × 5 reps = 80 runs.
-Cohort: OpenCode 2.2.6, `opencode-go/beam-free`, effort `high`.
+**Stage 1** — 112 valid runs, 9 tasks, 2 arms.
+Cohort: OpenCode 2.2.7, `opencode-go/beam-free`, effort `high`.
 Isolation: standalone workspace, `bwrap`, private `/tmp`, hidden oracle.
+Gate: paired bootstrap, 5,000 resamples, minimum 5% token or 10% duration effect.
 
-| Metric | A (OCTK off) | E (OCTK on) |
-|---|---:|---:|
-| Correctness | **40/40** | **40/40** |
-| Input tokens, mean | 10,003 | 12,130 (**+21.3%**) |
-| Input tokens, 95% CI | — | −46.7%..+0.8% (crosses zero) |
-| Duration, mean | 29.5s | 44.2s (**+49.8%**) |
-| Duration, 95% CI | — | −106.7%..−2.5% (significant slowdown) |
+| Metric | Result |
+|---|---|
+| Correctness | **112 / 112 valid runs passed.** No task regressed |
+| Large-context selection (n=20) | **38.5% fewer tokens** (CI +4.5%..+82.4%), **73.3% faster** (CI +0.5%..+187.0%) |
+| Small-edit tasks (n=32 paired) | **No signal.** Tokens −13.1% (CI −71.1%..+30.4%) |
+| Worst case, arm A | 37,203 tokens · 286s |
+| Worst case, arm E | **8,598 tokens · 11.4s** |
 
-**Gate:** paired bootstrap, 5,000 resamples, minimum 5% token or 10% duration
-effect. Result: **no measurable efficiency signal → Stage 2 blocked.**
+### The result that clears the gate
 
-### Per task
+`spec_selection`: choose the right specs from a 20-service inventory. The
+baseline has to read its way there; the pantry publishes an index.
 
-| Task | A tokens | E tokens | Δ |
+| statistic | A (OCTK off) | E (OCTK on) | change |
 |---|---:|---:|---:|
-| architecture_drift | 6,442 | 8,381 | +30.1% |
-| browser_issue | 3,183 | 3,589 | +12.8% |
-| capability_overlap | 2,999 | 3,443 | +14.8% |
-| multi_file_feature | 18,577 | 28,690 | +54.4% |
-| refactor | 6,296 | 4,673 | **−25.8%** |
-| repo_exploration | 8,709 | 9,598 | +10.2% |
-| simple_bug | 5,110 | 3,805 | **−25.5%** |
-| test_diagnosis | 22,214 | 24,824 | +11.7% |
+| median tokens | 7,426 | 6,260 | **−15.7%** |
+| mean tokens | 10,057 | 6,187 | **−38.5%** |
+| p90 tokens | 17,051 | 7,977 | **−53.2%** |
+| max tokens | 37,203 | 8,598 | **−76.9%** |
+| max duration | 286.2s | 11.4s | **−96.0%** |
 
-### Large-context pilot
+The mean gap comes from five A runs between 13.8k and 37.2k tokens. No E run
+left a narrow band. **The pantry's win is tail containment:** it removes the
+expensive search, and the expensive search is what blows up the worst case.
 
-A ninth task (`spec_selection`, 20 service specs) was added after Stage 1:
-**5/5 correct in both arms**, with E at **−17.4% tokens** and **−73% duration**
-on the point estimate — but the 95% CI crosses zero at n=5. Promising, not
-evidence yet.
+### The block that does not clear it
+
+Eight small-repo tasks, 5 reps per arm: no measurable effect (tokens
+−13.1%, CI −71.1%..+30.4%). Four runs were excluded as provider stalls, four
+cells never ran before the free-tier quota ran out. **Reported as partial, not
+as a win.** When a task is small enough to finish from first principles, a
+context tool has little to save.
 
 ### What we learned
 
 | Layer | Finding |
 |---|---|
 | **Architecture** | A fixed MCP schema tax of **~500 tokens per run**. v1 measured the same floor: bare 6,823 → octk 7,731 (**+908 turn-1 tokens**) |
-| **Implementation** | `check_spec_drift` dumped 11k chars per call; `glance_pantry` was mandatory and called 25 times; `equip_spec` added ~1k chars per call |
-| **Harness** | `/tmp` exposed pytest artifacts containing oracle copies; one pre-fix run spent 22 steps hunting them |
-| **Benchmark design** | All 8 tasks are small-repo edits. The pantry only pays off when the baseline would otherwise load many specs/skills |
+| **Implementation** | `check_spec_drift` dumped 11k chars per call; `glance_pantry` was mandatory and called 25 times. Both capped |
+| **Harness** | Two drivers once shared a workspace and produced a **fake correctness regression**. Now `flock`-guarded; timeouts are excluded, not scored as failures |
+| **Benchmark design** | The original 8 tasks could not exercise the pantry at all. The 9th was added to test the intended use case — and that is where the signal appeared |
 
-**Verdict:** the fixed overhead is architectural but modest. The gap is mostly
-implementation (tool output volume, extra steps) plus a suite that cannot
-exercise the pantry's intended win. The idea is untested at the scale where it
-matters — not disproven.
+**Verdict:** correctness parity holds across 112 runs. Efficiency is proven
+where context selection is genuinely expensive, and unproven everywhere else —
+so the external benchmark decides the general claim, not this suite.
 
 ### v1 was mixed too
 
@@ -284,9 +287,12 @@ Rules:
 ## Status
 
 - **v2 core:** registry, selector, adapters, providers, diagnostics, telemetry — done.
-- **Stage 1:** executed; correctness parity, no efficiency signal. Stage 2 blocked.
-- **Next:** a large-context task (~20 specs/skills) that can actually test the
-  pantry thesis; then the Terminal-Bench 2.0 adapter; then Phase B security.
+- **Stage 1:** 112/112 valid runs correct. **38.5% fewer tokens** on
+  large-context selection (n=20, CI excludes zero); **no signal** on the 8
+  small-edit tasks. Core block is partial: 4 provider-stall exclusions, 4 cells
+  awaiting quota.
+- **Next:** finish the 4 missing cells, then the Terminal-Bench 2.0 adapter
+  (the arbiter for the general claim), then Phase B security.
 - **Not shipped:** PyPI release, second harness (Codex), MCP reduction below 8.
 
 ## Provenance

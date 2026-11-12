@@ -207,9 +207,12 @@ result.
 
 ## 9. Driver
 
-Stage 1 has been executed: **80 runs, 80/80 correct, no efficiency signal**
-(E +21.3% tokens, 49.8% slower). Full numbers and the architecture-vs-
-implementation breakdown are in [`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md).
+Stage 1 has been executed: **112 valid runs, 112/112 correct**. The powered
+`spec_selection` block shows a real effect (38.5% fewer tokens, CI
++4.5%..+82.4%, n=20); the 8 small-edit tasks show none (tokens −13.1%, CI
+−71.1%..+30.4%). The core block is partial: 4 provider-stall exclusions and 4
+cells awaiting quota. Full numbers in
+[`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md).
 
 `benchmarks/driver.py` runs the design above.
 

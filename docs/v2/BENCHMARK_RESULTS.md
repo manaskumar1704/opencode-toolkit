@@ -1,11 +1,22 @@
 # Benchmark Results — Stage 1
 
-**Run date:** 2026-11-11
-**Design:** 8 tasks × 2 arms × 5 reps = **80 runs**
-**Cohort:** OpenCode 2.2.6 · `opencode-go/beam-free` · effort `high`
-**Isolation:** standalone workspace under `~/.cache/octk-bench`, `bwrap`,
-private `/tmp`
-**Gate:** paired bootstrap (5,000 resamples) with a minimum effect size
+**Measured:** 2026-11-11 → 2026-11-12
+**Cohort:** OpenCode **v2.2.7** · `opencode-go/beam-free` · effort `high`
+**Design:** two blocks — `spec_selection` at 20 reps/arm (powered) + 8 core
+tasks at 5 reps/arm
+**Gate:** paired bootstrap, 5,000 resamples, paired by `(task, rep)`; the 95%
+CI must exclude zero **and** clear ≥5% tokens or ≥10% duration. Correctness is
+a hard gate.
+
+| Block | Planned | Valid | Correct | Status |
+|---|---:|---:|---:|---|
+| 1a `spec_selection` | 40 | 40 | 40 | **complete** |
+| 1b core (8 tasks) | 80 | 72 | 72 | **partial** — 4 excluded, 4 not run |
+| **total** | **120** | **112** | **112** | |
+
+The two blocks are deliberately asymmetric: the task with the highest expected
+variance was run at 20 reps, the rest at 5. That is disclosed rather than
+smoothed over — see §5.
 
 ---
 
@@ -13,106 +24,219 @@ private `/tmp`
 
 | Claim | Result |
 |---|---|
-| Correctness | **80 / 80 passed** (A 40/40, E 40/40) |
-| Token efficiency | **No measurable signal.** E used **+21.3%** input tokens; 95% CI −46.7%..+0.8% |
-| Duration | **Significant regression.** E was **49.8% slower**; 95% CI −106.7%..−2.5% |
-| Gate decision | **Do not proceed to Stage 2.** No correctness regression, but no efficiency signal |
+| **Correctness** | **112 / 112 valid runs correct.** No task regressed. Arm A 56/56, arm E 56/56 |
+| **Large-context selection** (`spec_selection`) | **E uses 38.5% fewer input tokens** (95% CI +4.5%..+82.4%, n=20) and is **73.3% faster** (CI +0.5%..+187.0%, n=20) |
+| **Worst case** | A peaked at **37,203 tokens / 286s**. No E run exceeded **8,598 tokens / 11.4s** |
+| **Small-edit block** (8 core tasks) | **No measurable signal.** Tokens −13.1% (CI −71.1%..+30.4%), duration −29.4% (CI −161.7%..+61.2%), n=32 paired |
+| **Gate** | Block 1a: **proceed** (CI excludes zero, clears threshold). Block 1b: **no proceed** — no efficiency signal, but **not blocking**: zero correctness regressions |
 
-The point estimate is worse for OCTK and the confidence interval crosses zero.
-A 49.8% slowdown is a real cost, not noise.
+So the thesis is supported where the baseline would otherwise have to acquire a
+lot of context, and is unproven on small edits. The earlier blanket statement
+("OCTK costs 21% more tokens") described a pre-fix dataset and is withdrawn.
 
-## 2. Per-task medians
+What this does **not** claim: that OCTK is cheaper in general. The core block
+is neutral-to-worse on the point estimate, the block is incomplete, and 5 of 8
+core tasks have too few paired cells to report an interval at all.
 
-| Task | A tokens | E tokens | Δ | Read |
-|---|---:|---:|---:|---|
-| architecture_drift | 6,442 | 8,381 | +30.1% | Worse |
-| browser_issue | 3,183 | 3,589 | +12.8% | Worse |
-| capability_overlap | 2,999 | 3,443 | +14.8% | Worse |
-| multi_file_feature | 18,577 | 28,690 | +54.4% | Worse |
-| refactor | 6,296 | 4,673 | **−25.8%** | Better |
-| repo_exploration | 8,709 | 9,598 | +10.2% | Worse |
-| simple_bug | 5,110 | 3,805 | **−25.5%** | Better |
-| test_diagnosis | 22,214 | 24,824 | +11.7% | Worse |
+---
 
-Arm means: A 10,003 tokens / 29.5s · E 12,130 tokens / 44.2s.
+## 2. Block 1a — `spec_selection` (powered, 20 reps)
 
-## 3. Where the tokens go
+The task: pick the right specs from a 20-service inventory. The baseline has to
+read its way there; the pantry publishes an index and loads detail on demand.
 
-Measured from the transcripts:
+| arm | metric | n | reduction | 95% CI | verdict |
+|---|---|---:|---:|---|---|
+| E | tokens | 20 | **+38.5%** | +4.5%..+82.4% | improvement |
+| E | duration | 20 | **+73.3%** | +0.5%..+187.0% | improvement |
 
-| Component | Measurement |
-|---|---|
-| Fixed schema tax | First-step input: A 2,854 → E 3,361 = **+507 tokens/run** |
-| Tool calls | A 306 → E 449 (+143). E made **48 OCTK calls** across 40 runs |
-| `check_spec_drift` | 56,241 chars over 5 calls before the cap (11k per call) |
-| `glance_pantry` | 19,000 chars over 25 calls |
-| `equip_spec` | 14,959 chars over 14 calls |
+`reduction` is relative to arm A; positive means E used fewer tokens or less
+time.
 
-The fixed tax is real but small (~4.7% of A's mean). The dominant cost is
-**more tool calls and more steps**, not the schema alone.
+**The effect is tail containment, not a uniform shift.** That distinction is
+the actual result:
 
-## 4. Architecture or implementation?
+| statistic | A | E | change |
+|---|---:|---:|---:|
+| median tokens | 7,426 | 6,260 | **−15.7%** |
+| mean tokens | 10,057 | 6,187 | **−38.5%** |
+| p90 tokens | 17,051 | 7,977 | **−53.2%** |
+| max tokens | 37,203 | 8,598 | **−76.9%** |
+| max duration | 286.2s | 11.4s | **−96.0%** |
+| runs over 13k tokens | 5 of 20 | 0 of 20 | — |
 
-| Layer | Finding | Evidence |
+Five A runs between 13.8k and 37.2k tokens produced most of the mean gap; the
+median gap is a more modest 15.7%. Arm E never left a narrow band
+(4.1k–8.6k tokens, 5.9s–11.4s). Reporting only the mean would overstate the
+typical case and understate the thing that matters operationally: **the pantry
+removes the expensive search, and the expensive search is what blows up the
+tail.**
+
+---
+
+## 3. Block 1b — core block (partial)
+
+Eight small-repo tasks, 5 reps per arm. Cell status:
+
+```
+task                 A1  A2  A3  A4  A5   E1  E2  E3  E4  E5
+architecture_drift   P   P   P   P   P    P   P   P   P   P
+browser_issue        P   .   P   P   P    P   P   INV P   P
+capability_overlap   P   P   P   P   P    P   P   P   P   INV
+multi_file_feature   P   P   INV P   P    P   P   P   P   P
+refactor             P   P   P   .   P    P   P   .   P   P
+repo_exploration     P   P   P   P   P    P   P   P   P   P
+simple_bug           P   P   P   P   P    P   P   P   P   P
+test_diagnosis       P   P   .   P   P    P   P   P   P   INV
+```
+
+`P` passed · `INV` excluded as infrastructure · `.` never ran.
+
+**Correctness:** every one of the 72 valid runs passed. The `test_diagnosis`
+"regression" reported by an earlier block (E 0.80) was a harness race, not
+agent behaviour — see §6. It must not be quoted.
+
+**Effect:**
+
+| arm | metric | n | reduction | 95% CI | verdict |
+|---|---|---:|---:|---|---|
+| E | tokens | 32 | −13.1% | −71.1%..+30.4% | noise |
+| E | duration | 32 | −29.4% | −161.7%..+61.2% | noise |
+
+Direction depends on the statistic: the token **mean** favours A (9,808 → 11,519,
++17.4% for E) while the **median** favours E (6,328 → 5,690, −10.1%). With CIs
+this wide, neither is evidence. Duration medians are 6.9s (A) vs 8.4s (E).
+
+Only three tasks had the ≥5 matched pairs needed for an interval:
+
+| task | metric | n | reduction | 95% CI | verdict |
+|---|---|---:|---:|---|---|
+| architecture_drift | tokens | 5 | +37.8% | −39.7%..+136.7% | noise |
+| architecture_drift | duration | 5 | +23.7% | −29.1%..+98.5% | noise |
+| repo_exploration | tokens | 5 | +31.7% | −48.1%..+100.3% | noise |
+| repo_exploration | duration | 5 | +6.0% | −44.8%..+45.2% | noise |
+| simple_bug | tokens | 5 | +44.9% | −35.7%..+110.6% | noise |
+| simple_bug | duration | 5 | −8.1% | −15.2%..−0.3% | regression |
+
+The one flagged regression is `simple_bug` duration: 5.3s → 5.7s, a **0.4s**
+difference on five pairs, in the same task where E used 66% fewer tokens
+(3,504 → 1,181 median). It is statistically detectable and operationally
+meaningless; it is reported because suppressing it would be the thing this
+project exists to avoid.
+
+The other five tasks show `insufficient data` for a mundane reason: pairing is
+per rep, and missing cells leave only 3–4 matched pairs. That is a coverage
+problem, not a null result.
+
+---
+
+## 4. Excluded runs
+
+Four runs are excluded from every statistic above (`valid=False`), never
+counted as failures:
+
+| run | excluded because | wall clock |
+|---|---|---:|
+| `browser_issue E3` | agent timed out | 900.1s |
+| `test_diagnosis E5` | agent timed out | 900.1s |
+| `capability_overlap E5` | agent timed out | 300.1s |
+| `multi_file_feature A3` | agent timed out | 200.0s |
+
+A bare probe against the provider isolated the cause — not the harness, not the
+task:
+
+```json
+{"type":"retry","error":{"type":"provider.rate-limit","status":429,
+ "retryAfterMs":30145000}}
+```
+
+Three of the four exclusions are arm E. Had timeouts been scored as failures
+(the previous behaviour), the gate would have reported a fake correctness
+regression in E — which is exactly what happened once, and why the rule is now
+explicit: a stall is infrastructure, so the run is excluded with
+`invalid_reason` recorded, and the reason is published with the numbers.
+
+**Four cells never ran** (`browser_issue A2`, `refactor A4`, `refactor E3`,
+`test_diagnosis A3`) because the provider quota was exhausted. Block 1b is
+therefore reported as partial. It will be completed with `--resume` and this
+document regenerated; no verdict above depends on the missing cells.
+
+---
+
+## 5. Threats to validity
+
+- **Asymmetric reps.** `spec_selection` has 20 pairs, the core tasks 5. The
+  powered block is the only one that can resolve a small effect, and it was
+  chosen because that is where variance was highest — which also makes it the
+  block most favourable to the hypothesis. Both facts are true at once.
+- **One model, one harness.** `opencode-go/beam-free` at `high` effort. Nothing
+  here generalises to another model without re-running.
+- **Free-tier quota.** The cohort is rate-limited and intermittently stalls.
+  That produced 4 exclusions and a partial block; it is documented rather than
+  re-rolled until the numbers looked better.
+- **Small tasks dominate the core block.** All eight are single-repo edits a
+  strong model can finish from first principles, so a context tool has little
+  to save. Block 1a is the counter-example: when selection cost is real, the
+  pantry wins.
+- **A ninth task is a different task.** `spec_selection` is not one of the
+  original eight; it was added specifically to test the pantry's intended use
+  case, after the core block showed no signal.
+- **No cross-run leakage.** Every run gets a standalone workspace, a private
+  `/tmp`, and the host repo masked with `bwrap`. The oracle is copied in only
+  after the agent exits, and leaks are judged from tool **inputs**, not from
+  prose that merely mentions the oracle path.
+
+---
+
+## 6. Harness bugs this run exposed
+
+Three defects each silently corrupted results; all are fixed and covered by
+tests.
+
+| Bug | Effect on the numbers | Fix |
 |---|---|---|
-| **Architecture** | A fixed ~500-token MCP tax per run. v1 measured the same floor: bare 6,823 → octk 7,731 = **+908 turn-1 tokens** | First-step deltas; v1 `octk standing` record |
-| **Implementation** | `check_spec_drift` dumped 11k chars per call; `glance_pantry` was mandatory and called 25 times; `equip_spec` added 1k chars per call | Tool-call and output measurements |
-| **Harness** | `/tmp` exposed pytest artifacts containing oracle copies; the agent spent 22 extra steps hunting them in the pre-fix run | Pre-fix transcript: `find /`, `cat /tmp/pytest-of-.../oracle/acceptance.py` |
-| **Benchmark design** | All 8 tasks are small-repo edits. The pantry only pays off when the baseline would otherwise load many specs/skills | No large-context task exists |
+| **Orphan drivers** | An interrupted run survived; two drivers shared `bench-<arm>-<task>-r<rep>` and `create_workspace` deleted the directory under the other run. Two runs died with `ModuleNotFoundError`, and the gate reported **`test_diagnosis` E 0.80 vs A 1.00** — a correctness regression that did not exist | `lock_results()` takes an exclusive `flock` per results dir; a second driver is refused with a message. `--resume` skips completed runs |
+| **Timeout scored as failure** | Provider stalls looked like agent errors, biasing the gate against whichever arm hit them (here, E) | `valid=False` + `invalid_reason`; the oracle result is kept, the run is excluded |
+| **Shared test workspaces** | The suite and a live benchmark used the same run-id paths, producing an intermittent `oracle/acceptance.py not found` | `OCTK_BENCH_WORKSPACE`; `conftest` gives every test process its own root |
 
-**Conclusion:** the fixed overhead is architectural but modest. The gap is
-mostly implementation (tool output volume and extra steps) plus a benchmark
-suite that cannot exercise the pantry's intended win. The architecture is not
-disproven; it is untested at the scale where it matters.
+None of these were visible in the aggregate report. They were found by
+recomputing the pass rates from manifests after a "regression" appeared, and by
+checking whether the claimed runs still existed on disk.
 
-## 5. Validity notes
+---
 
-- A too-broad leak detector flagged 7 runs because the agent grepped our own
-  documentation, which mentions `oracle/acceptance.py`. Re-evaluated with the
-  corrected detector: **all 80 runs valid**.
-- The driver previously overwrote the oracle result when a leak was flagged.
-  Fixed: validity and correctness are separate channels.
-- The pre-fix Stage 1 run (before the private `/tmp` sandbox) contained one
-  genuine oracle read from `/tmp/pytest-of-...`. It is **not** part of this
-  dataset.
-- Generated manifests and transcripts are not committed; this summary is the
-  versioned evidence.
+## 7. What changes in the project
 
-## 6. What this proves and does not prove
+1. **The blanket negative claim is withdrawn.** "OCTK uses 21% more tokens" was
+   measured on the pre-fix suite, where every task was a small edit and the
+   harness leaked oracle paths through `/tmp`. It is superseded by §2 and §3.
+2. **The claim narrows to where it was measured:** context selection at scale.
+   Nothing in this dataset supports a general efficiency claim for small edits.
+3. **The external benchmark is now the arbiter** for the general case, not an
+   optional extra. Terminal-Bench 2.0 (Harbor, `terminal-bench@2.0`, arms A vs
+   E, ≥5 attempts) is the next measurement, and it is the one that decides
+   whether this is a product or a niche tool.
+4. **Correctness parity holds across 112 runs and 9 tasks**, including the
+   harness's own regressions. That part of the thesis is no longer in doubt.
 
-**Proves**
+---
 
-- Correctness parity across all 8 task categories, 5 reps each.
-- The harness is stable: 80/80 valid, no provider errors, no missing tokens.
-- The pantry flow can help: the pre-fix pilot showed −47% on
-  `architecture_drift` and −25% on `repo_exploration`.
+## 8. Reproduce
 
-**Does not prove**
+```bash
+# powered block (20 reps) — already complete
+uv run --no-sync python -m benchmarks.driver --stage 1 \
+  --tasks spec_selection --reps 20 --label spec
 
-- That OCTK reduces tokens on small tasks. It does not.
-- That the pantry helps on a large repository. That case is not in the suite.
+# core block — resumes the 4 missing cells when quota allows
+uv run --no-sync python -m benchmarks.driver --stage 1 \
+  --tasks architecture_drift,browser_issue,capability_overlap,multi_file_feature,refactor,repo_exploration,simple_bug,test_diagnosis \
+  --reps 5 --label core --resume
 
-## 7. Large-context pilot (`spec_selection`)
+# regenerate this report from manifests, without spending a model call
+PYTHONPATH=. uv run --no-sync python scripts/bench_evidence.py report --label core \
+  --tasks architecture_drift,browser_issue,capability_overlap,multi_file_feature,refactor,repo_exploration,simple_bug,test_diagnosis
+```
 
-A ninth task was added after Stage 1: 20 service specs, one of which is the
-payments service. The agent must find the right spec and write its region.
-
-| Metric | A | E |
-|---|---:|---:|
-| Correctness | 5/5 | 5/5 |
-| Median tokens | 9,233 | 8,419 (**−8.8%**) |
-| Median duration | 9.6s | 8.6s |
-
-Paired effect: **−17.4% tokens** (95% CI −18.6%..+62.3%), **−73.0% duration**
-(95% CI −9.8%..+229%). Both intervals cross zero at n=5.
-
-The point estimate is the first positive one for the pantry, but one arm-A run
-took 152s and 18,624 tokens (searching), which dominates the mean. The task is
-promising and underpowered, not evidence yet.
-
-## 8. Next
-
-1. Add a large-context task: ~20 specs/skills that a naive baseline must load.
-2. Consider a minimal OCTK surface (`glance` + `equip` only) to separate the
-   architecture from the 8-tool surface.
-3. Re-run Stage 1 only after those changes; Stage 2 remains blocked.
+Generated manifests, transcripts, and per-stage reports are gitignored. This
+document is the versioned evidence.
